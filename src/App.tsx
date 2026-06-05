@@ -1,5 +1,5 @@
 import * as React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { MedicalRecords } from "@/components/medical_records";
 import { ViewUsers } from "./components/view-users";
 import { SignUp } from "@/components/signup";
@@ -63,7 +63,7 @@ function App() {
           },
         }}
       />
-      <BrowserRouter>
+      <HashRouter>
         <Routes>
           <Route
             path="/"
@@ -325,7 +325,7 @@ function App() {
             }
           />
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     </>
   );
 }

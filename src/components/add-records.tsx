@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { db } from "@/firebaseConfig";
 import { ref, set, push, onValue, get } from "firebase/database";
 import { useAuth } from "@/auth/authprovider";
+import { useNavigate } from "react-router-dom";
 
 //FUNCTIONS AND INTERFACES FOR COMPONENTS
 
@@ -60,6 +61,7 @@ function isValidDate(date: Date | undefined) {
 
 export function AddRecords() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = React.useState(false);
   const [date, setDate] = React.useState<Date | undefined>(undefined);
   const [month, setMonth] = React.useState<Date | undefined>(date);
@@ -348,6 +350,7 @@ export function AddRecords() {
       toast.error("Failed to add record. Please try again.");
     } finally {
       setIsLoading(false);
+      navigate("/records");
     }
   };
 

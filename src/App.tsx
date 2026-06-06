@@ -69,10 +69,10 @@ function App() {
             path="/"
             element={
               !user ? (
-                <div className="h-screen relative flex justify-center items-center overflow-y-auto bg-gradient-to-br from-blue-100 via-blue-200 to-blue-400 p-6">
-                  <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-300/30 rounded-full blur-3xl animate-pulse" />
-                  <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
-                  <div className="flex flex-col lg:flex-row  h-screen w-full">
+                <div className="min-h-screen relative flex justify-center items-center overflow-y-auto bg-gradient-to-br from-blue-100 via-blue-200 to-blue-400 p-4">
+                  <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-300/30 rounded-full blur-3xl animate-pulse pointer-events-none" />
+                  <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000 pointer-events-none" />
+                  <div className="flex flex-col lg:flex-row w-full min-h-screen">
                     {/* <div className="flex flex-col items-center text-center mb-8">
                       <h1 className="text-4xl font-bold text-green-500 tracking-tight drop-shadow-sm">
                         Welcome to Medali
@@ -81,7 +81,7 @@ function App() {
                         Manage patient records online
                       </p>
                     </div> */}
-                    <div className="flex flex-col lg:flex-row h-screen w-full">
+                    <div className="flex flex-col lg:flex-row w-full">
                       <div className="flex flex-1 items-center justify-center ">
                         <Card className="h-full w-full border-none rounded-none  flex flex-col items-center justify-center text-center px-6">
                           <p className="flex text-3xl font-bold justify-center items-center">
@@ -142,7 +142,7 @@ function App() {
                       <div className="flex h-full w-full lg:w-1/2 ">
                         <Card className="p-8  border border-none rounded-none w-full h-full overflow-y-auto">
                           <Tabs defaultValue="login" className="w-full">
-                            <TabsList className="grid grid-cols-2 w-full mb-6">
+                            <TabsList className="grid grid-cols-2 w-full mb-6 relative z-50">
                               <TabsTrigger
                                 value="login"
                                 className="data-[state=active]:!bg-blue-500 
@@ -159,7 +159,7 @@ function App() {
                                 Signup
                               </TabsTrigger>
                             </TabsList>
-                            <div className="overflow-y-auto">
+                            <div>
                               <TabsContent value="login">
                                 <CardTitle className="text-2xl font-semibold text-blue-900 flex justify-center items-center">
                                   Login to your account

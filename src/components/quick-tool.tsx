@@ -37,18 +37,18 @@ export function QuickTool() {
 
   return (
     <div
-      className="fixed z-[999999]"
+      className="fixed z-[999999] touch-none"
       style={{
         left: position.x,
         top: position.y,
       }}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         setIsDragging(true);
 
         const startX = e.clientX - position.x;
         const startY = e.clientY - position.y;
 
-        const move = (ev: MouseEvent) => {
+        const move = (ev: PointerEvent) => {
           setPosition({
             x: ev.clientX - startX,
             y: ev.clientY - startY,
@@ -57,12 +57,12 @@ export function QuickTool() {
 
         const up = () => {
           setIsDragging(false);
-          window.removeEventListener("mousemove", move);
-          window.removeEventListener("mouseup", up);
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
         };
 
-        window.addEventListener("mousemove", move);
-        window.addEventListener("mouseup", up);
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
       }}
     >
       <div className="relative">

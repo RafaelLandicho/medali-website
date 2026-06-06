@@ -50,7 +50,9 @@ import { toast } from "sonner";
 
 import { db } from "@/firebaseConfig";
 import { ref, onValue, remove, set, push } from "firebase/database";
+
 import { useAuth } from "@/auth/authprovider";
+import { useNavigate } from "react-router-dom";
 import { EmptyRecords } from "./empty-records";
 import { AddRecordsDrawer } from "./add-records-drawer";
 import { EditRecordsSheet } from "./edit-records-sheet";
@@ -263,7 +265,7 @@ const DeletePatient = ({ patient }: { patient: Patient }) => {
             </DialogClose>
             <Button
               onClick={handleDelete}
-              className="!bg-red-500 hover:!bg-red-600 text-white"
+              className="!bg-red-500 hover:!bg-red-600 text-white !sticky-right"
             >
               Delete
             </Button>
@@ -324,6 +326,7 @@ export const columns: ColumnDef<Patient>[] = [
 
 export function MedicalRecords() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [data, setData] = React.useState<Patient[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [filter, setFilter] = React.useState("firstName");
@@ -489,6 +492,12 @@ export function MedicalRecords() {
               ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        <Button
+          className="!bg-orange-400 !text-white"
+          onClick={() => navigate("/add-record")}
+        >
+          Add Records
+        </Button>
       </div>
 
       {/* Table */}

@@ -306,7 +306,7 @@ const MobilePrescriptionCard = ({
           <button
             onClick={() => setOpenDetails(true)}
             title="View prescription"
-            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 !bg-white hover:bg-gray-50 transition-colors"
           >
             <PillIcon className="w-4 h-4 text-[#00a896]" />
           </button>
@@ -314,7 +314,7 @@ const MobilePrescriptionCard = ({
             <button
               onClick={() => setOpenEdit(true)}
               title="Edit prescription"
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 !bg-white hover:bg-gray-50 transition-colors"
             >
               <PenIcon className="w-4 h-4 text-[#00a896]" />
             </button>
@@ -322,7 +322,7 @@ const MobilePrescriptionCard = ({
           <button
             onClick={() => setOpenDelete(true)}
             title="Delete prescription"
-            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 bg-white hover:bg-red-50 hover:border-red-200 transition-colors"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 !bg-white hover:bg-red-50 hover:border-red-200 transition-colors"
           >
             <Trash2Icon className="w-4 h-4 text-red-400" />
           </button>

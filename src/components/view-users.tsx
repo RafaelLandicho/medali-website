@@ -410,7 +410,7 @@ export function ViewUsers() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button className="!bg-blue-400 !text-white">
+              <Button className="!bg-[#00a896] !text-white">
                 Filter <ChevronDown className="ml-2 w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>

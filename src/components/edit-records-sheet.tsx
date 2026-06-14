@@ -148,19 +148,19 @@ export function EditRecordsSheet({
     }));
   };
 
-  const handleRemoveDiagnosis = (index: number) => {
-    setFields((prev) => ({
-      ...prev,
-      patientDiagnosis: prev.patientDiagnosis.filter((_, i) => i !== index),
-    }));
-  };
+  // const handleRemoveDiagnosis = (index: number) => {
+  //   setFields((prev) => ({
+  //     ...prev,
+  //     patientDiagnosis: prev.patientDiagnosis.filter((_, i) => i !== index),
+  //   }));
+  // };
 
-  const handleRemoveHistory = (index: number) => {
-    setFields((prev) => ({
-      ...prev,
-      familyHistory: prev.familyHistory.filter((_, i) => i !== index),
-    }));
-  };
+  // const handleRemoveHistory = (index: number) => {
+  //   setFields((prev) => ({
+  //     ...prev,
+  //     familyHistory: prev.familyHistory.filter((_, i) => i !== index),
+  //   }));
+  // };
 
   const handleDiagnosisChange = (
     index: number,
@@ -234,7 +234,7 @@ export function EditRecordsSheet({
       </div>
 
       <div className="space-y-3">
-        {fields.patientDiagnosis.map((d, index) => (
+        {/* {fields.patientDiagnosis.map((d, index) => (
           <div
             key={index}
             className={`p-4 border border-gray-200 rounded-xl bg-gray-50 ${
@@ -300,7 +300,7 @@ export function EditRecordsSheet({
               </div>
             )}
           </div>
-        ))}
+        ))} */}
       </div>
     </div>
   );
@@ -328,7 +328,7 @@ export function EditRecordsSheet({
 
       {isMobile ? (
         <div className="space-y-4">
-          {fields.familyHistory.map((h, index) => (
+          {/* {fields.familyHistory.map((h, index) => (
             <Card key={index} className="p-4 space-y-4 border border-gray-200">
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">
@@ -403,7 +403,7 @@ export function EditRecordsSheet({
                 </Button>
               )}
             </Card>
-          ))}
+          ))} */}
         </div>
       ) : (
         <>
@@ -425,7 +425,7 @@ export function EditRecordsSheet({
             </div>
           </div>
 
-          <div className="divide-y border border-gray-200 rounded-xl overflow-hidden">
+          {/* <div className="divide-y border border-gray-200 rounded-xl overflow-hidden">
             {fields.familyHistory.map((h, index) => (
               <div
                 key={index}
@@ -485,7 +485,7 @@ export function EditRecordsSheet({
                 </div>
               </div>
             ))}
-          </div>
+          </div> */}
         </>
       )}
     </div>

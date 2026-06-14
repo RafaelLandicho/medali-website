@@ -117,7 +117,7 @@ export function AddConsultationRecords() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const location = useLocation();
-  const patient = location.state as Patient | null; // ← nullable
+  const patient = location.state as Patient | null;
   const navigate = useNavigate();
 
   if (!patient) {
@@ -314,7 +314,6 @@ export function AddConsultationRecords() {
       };
 
       if (userIsSecretary) {
-        // Push to pending instead, but still link to patient
         const pendingRef = ref(db, "pending");
         const newPending = push(pendingRef);
         await set(newPending, {
@@ -1146,7 +1145,6 @@ export function AddConsultationRecords() {
         </div>
       </Card>
 
-      {/* ── SHARE WITH LINKED USER ── */}
       {!userIsAdmin && linkedUsers.length > 0 && (
         <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
           <Label className="text-base font-semibold text-blue-800 mb-3 block">

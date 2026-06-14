@@ -99,7 +99,7 @@ export type Patient = {
   province: string;
   telephone: string;
   addedBy: string;
-};
+} & Record<string, any>;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

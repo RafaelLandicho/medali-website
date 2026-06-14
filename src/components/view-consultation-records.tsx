@@ -203,7 +203,7 @@ const RiskIndicators = ({ record }: { record: MedicalRecord }) => (
   </div>
 );
 
-// ─── Consultation Record Actions (Tab 1) ──────────────────────────────────────
+// Consultation Record Actions
 
 const ConsultationRecordActions = ({ records }: { records: MedicalRecord }) => {
   const { user } = useAuth();
@@ -236,11 +236,11 @@ const ConsultationRecordActions = ({ records }: { records: MedicalRecord }) => {
   if (!patient) return null;
 
   const patientWithRecord: PatientWithRecord = {
-    ...patient, // name, gender, age, address etc.
-    ...records, // diagnosis, vitals, flags etc.
-    id: patient.id, // keep patient's id, not the record id
+    ...patient,
+    ...records,
+    id: patient.id,
     recordId: records.recordId,
-    addedBy: patient.addedBy, // prefer patient-level addedBy
+    addedBy: patient.addedBy,
   };
 
   return (
@@ -258,7 +258,7 @@ const ConsultationRecordActions = ({ records }: { records: MedicalRecord }) => {
         patient={patientWithRecord}
       />
 
-      <button
+      {/* <button
         onClick={() => setOpenEdit(true)}
         title="Edit patient"
         className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
@@ -269,7 +269,7 @@ const ConsultationRecordActions = ({ records }: { records: MedicalRecord }) => {
         open={openEdit}
         onOpenChange={setOpenEdit}
         patient={patientWithRecord}
-      />
+      /> */}
 
       {userIsDoctor && !hasPrescription && (
         <div>
@@ -303,7 +303,7 @@ const ConsultationRecordActions = ({ records }: { records: MedicalRecord }) => {
   );
 };
 
-// ─── View Prescription Dialog (read-only) ─────────────────────────────────────
+//View Prescription
 
 const ViewPrescriptionDialog = ({
   open,
@@ -440,7 +440,7 @@ const ViewPrescriptionDialog = ({
   );
 };
 
-// ─── Prescription Record Actions (Tab 2) ──────────────────────────────────────
+//  Prescription Record Actions
 
 const PrescriptionRecordActions = ({ record }: { record: MedicalRecord }) => {
   const { user } = useAuth();
@@ -497,7 +497,7 @@ const PrescriptionRecordActions = ({ record }: { record: MedicalRecord }) => {
   );
 };
 
-// ─── Consultation Record Columns (Tab 1) ──────────────────────────────────────
+// Consultation Record Columns
 
 const columns: ColumnDef<MedicalRecord>[] = [
   {
@@ -627,7 +627,7 @@ const columns: ColumnDef<MedicalRecord>[] = [
   },
 ];
 
-// ─── Prescription Columns (Tab 2) ─────────────────────────────────────────────
+// Prescription Columns──
 
 const prescriptionColumns: ColumnDef<MedicalRecord>[] = [
   {
@@ -760,21 +760,17 @@ const prescriptionColumns: ColumnDef<MedicalRecord>[] = [
   },
 ];
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 export function ConsultationRecords() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const location = useLocation();
 
-  // Patient is passed via navigate(..., { state: patient }) from MedicalRecords
   const patient = location.state as Patient | null;
 
   const [records, setRecords] = React.useState<MedicalRecord[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  // ── Tab 1: Consultation Records table state ──
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
@@ -785,7 +781,6 @@ export function ConsultationRecords() {
   const [rowSelection, setRowSelection] = React.useState({});
   const [searchValue, setSearchValue] = React.useState("");
 
-  // ── Tab 2: Prescriptions table state ──
   const [prescSorting, setPrescSorting] = React.useState<SortingState>([]);
   const [prescColumnFilters, setPrescColumnFilters] =
     React.useState<ColumnFiltersState>([]);
@@ -795,7 +790,6 @@ export function ConsultationRecords() {
   const [prescRowSelection, setPrescRowSelection] = React.useState({});
   const [prescSearchValue, setPrescSearchValue] = React.useState("");
 
-  // ─── Fetch records for this patient ─────────────────────────────────────────
   React.useEffect(() => {
     if (!user || !patient?.id) return;
 
@@ -803,7 +797,7 @@ export function ConsultationRecords() {
 
     const usersRef = ref(db, "users");
     const outerUnsub = onValue(usersRef, (usersSnap) => {
-      innerUnsub?.(); // detach previous inner listener before re-attaching
+      innerUnsub?.();
 
       const currentUser = (usersSnap.val() || {})[user.uid];
       if (!currentUser) {
@@ -915,8 +909,6 @@ export function ConsultationRecords() {
   const filteredRows = table.getFilteredRowModel().rows;
   const prescFilteredRows = prescriptionTable.getFilteredRowModel().rows;
 
-  // ─── Tab 1: Toolbar / Pagination ────────────────────────────────────────────
-
   const Toolbar = (
     <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
       <div className="relative flex-1 sm:max-w-sm">
@@ -1008,8 +1000,6 @@ export function ConsultationRecords() {
       </div>
     </div>
   );
-
-  // ─── Tab 2: Toolbar / Pagination ────────────────────────────────────────────
 
   const PrescriptionToolbar = (
     <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
@@ -1118,7 +1108,6 @@ export function ConsultationRecords() {
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-5 bg-gray-50 min-h-screen">
-      {/* Header — only patient name, nothing else from patient object */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight">
@@ -1159,7 +1148,6 @@ export function ConsultationRecords() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ─── TAB 1: Consultation Records ─────────────────────────────────── */}
         <TabsContent value="records" className="flex flex-col gap-4 mt-4">
           <StatCard
             label="Total Records"
@@ -1323,7 +1311,6 @@ export function ConsultationRecords() {
           )}
         </TabsContent>
 
-        {/* ─── TAB 2: Prescriptions ─────────────────────────────────────────── */}
         <TabsContent value="prescriptions" className="flex flex-col gap-4 mt-4">
           <StatCard
             label="Total Prescriptions"

@@ -4,6 +4,7 @@ import * as React from "react";
 import { UserIcon } from "./ui/icons/lucide-user";
 import { PillIcon } from "./ui/icons/lucide-pill";
 import { PenIcon } from "./ui/icons/lucide-pen";
+
 import { Trash2Icon } from "./ui/icons/lucide-trash-2";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -76,71 +77,12 @@ import { ref, onValue, remove, set, push } from "firebase/database";
 
 import { useAuth } from "@/auth/authprovider";
 import { useNavigate } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { EmptyRecords } from "./empty-records";
 import { AddRecordsDrawer } from "./add-records-drawer";
 import { EditRecordsSheet } from "./edit-records-sheet";
 import { PrescriptionDrawer } from "./add-prescription-drawer";
 import { FullRecordsDrawer } from "./viewfull-records-drawer";
-
-// ─── useIsMobile hook ─────────────────────────────────────────────────────────
-
-/**
- * Returns true when the viewport is narrower than `breakpoint` px (default 640).
- * Hydration-safe: starts as false on the server, updates after first paint.
- */
-function useIsMobile(breakpoint = 640): boolean {
-  const [isMobile, setIsMobile] = React.useState(false);
-
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
-    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    setIsMobile(mql.matches);
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, [breakpoint]);
-
-  return isMobile;
-}
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export type MedicalHistory = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  gender: string;
-  age: number;
-  birthdate: string;
-  patientDiagnosis: { diagnosis: string; severity: string; notes: string }[];
-  address: string;
-  address1: string;
-  address2: string;
-  city: string;
-  province: string;
-  telephone: string;
-  addedBy: string;
-  familyHistory: {
-    relation: string;
-    age: string;
-    healthProblems: string;
-    goodHealth: boolean;
-    isAlive: boolean;
-  }[];
-  symptoms?: string;
-  bloodPressure?: string;
-  heartRate?: string;
-  respiratoryRate?: string;
-  temperature?: string;
-  oxygenSaturation?: string;
-  weight?: string;
-  height?: string;
-  medicalCare: boolean;
-  drugAllergy: boolean;
-  foodAllergy: boolean;
-  isTBPositive: boolean;
-  hasClinician: boolean;
-  diet: boolean;
-};
 
 export type Patient = {
   id: string;
@@ -149,7 +91,7 @@ export type Patient = {
   gender: string;
   age: number;
   birthdate: string;
-  patientDiagnosis: { diagnosis: string; severity: string; notes: string }[];
+
   address: string;
   address1: string;
   address2: string;
@@ -157,28 +99,6 @@ export type Patient = {
   province: string;
   telephone: string;
   addedBy: string;
-  symptoms?: string;
-  bloodPressure?: string;
-  heartRate?: string;
-  respiratoryRate?: string;
-  temperature?: string;
-  oxygenSaturation?: string;
-  weight?: string;
-  height?: string;
-  familyHistory: {
-    relation: string;
-    age: string;
-    healthProblems: string;
-    goodHealth: boolean;
-    isAlive: boolean;
-  }[];
-  medicalCare: boolean;
-  drugAllergy: boolean;
-  foodAllergy: boolean;
-  isTBPositive: boolean;
-  hasClinician: boolean;
-  diet: boolean;
-  medicalHistory?: { [key: string]: MedicalHistory };
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -230,31 +150,31 @@ const PatientAvatar = ({
   );
 };
 
-const RiskIndicators = ({ patient }: { patient: Patient }) => (
-  <div className="flex items-center gap-1 flex-wrap">
-    {patient.isTBPositive && (
-      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">
-        <Biohazard className="w-2.5 h-2.5" />
-        TB+
-      </span>
-    )}
-    {patient.drugAllergy && (
-      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-200">
-        <AlertTriangle className="w-2.5 h-2.5" />
-        Drug
-      </span>
-    )}
-    {patient.foodAllergy && (
-      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-yellow-100 text-yellow-700 border border-yellow-200">
-        <UtensilsCrossed className="w-2.5 h-2.5" />
-        Food
-      </span>
-    )}
-    {!patient.isTBPositive && !patient.drugAllergy && !patient.foodAllergy && (
-      <span className="text-gray-300 text-xs">—</span>
-    )}
-  </div>
-);
+// const RiskIndicators = ({ patient }: { patient: Patient }) => (
+//   <div className="flex items-center gap-1 flex-wrap">
+//     {patient.isTBPositive && (
+//       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">
+//         <Biohazard className="w-2.5 h-2.5" />
+//         TB+
+//       </span>
+//     )}
+//     {patient.drugAllergy && (
+//       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-200">
+//         <AlertTriangle className="w-2.5 h-2.5" />
+//         Drug
+//       </span>
+//     )}
+//     {patient.foodAllergy && (
+//       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-yellow-100 text-yellow-700 border border-yellow-200">
+//         <UtensilsCrossed className="w-2.5 h-2.5" />
+//         Food
+//       </span>
+//     )}
+//     {!patient.isTBPositive && !patient.drugAllergy && !patient.foodAllergy && (
+//       <span className="text-gray-300 text-xs">—</span>
+//     )}
+//   </div>
+// );
 
 // ─── Stats Bar ────────────────────────────────────────────────────────────────
 
@@ -266,71 +186,63 @@ const StatsBar = ({
   isMobile: boolean;
 }) => {
   const total = patients.length;
-  const tbPositive = patients.filter((p) => p.isTBPositive).length;
-  const drugAllergy = patients.filter((p) => p.drugAllergy).length;
-  const foodAllergy = patients.filter((p) => p.foodAllergy).length;
+  // const tbPositive = patients.filter((p) => p.isTBPositive).length;
+  // const drugAllergy = patients.filter((p) => p.drugAllergy).length;
+  // const foodAllergy = patients.filter((p) => p.foodAllergy).length;
 
-  const stats = [
-    {
-      label: "Total",
-      value: total,
-      icon: <Users className="w-4 h-4" />,
-      color: "text-[#00a896]",
-      bg: "bg-[#00a896]/10",
-    },
-    {
-      label: "TB+",
-      value: tbPositive,
-      icon: <Biohazard className="w-4 h-4" />,
-      color: "text-red-600",
-      bg: "bg-red-50",
-    },
-    {
-      label: "Drug",
-      value: drugAllergy,
-      icon: <AlertTriangle className="w-4 h-4" />,
-      color: "text-orange-600",
-      bg: "bg-orange-50",
-    },
-    {
-      label: "Food",
-      value: foodAllergy,
-      icon: <UtensilsCrossed className="w-4 h-4" />,
-      color: "text-yellow-600",
-      bg: "bg-yellow-50",
-    },
-  ];
+  // const stats = [
+  //   {
+  //     label: "Total",
+  //     value: total,
+  //     icon: <Users className="w-4 h-4" />,
+  //     color: "text-[#00a896]",
+  //     bg: "bg-[#00a896]/10",
+  //   },
 
-  return (
-    <div className="grid grid-cols-4 gap-2 sm:gap-3">
-      {stats.map((s) => (
-        <div
-          key={s.label}
-          className="flex flex-col sm:flex-row items-center sm:items-center gap-1 sm:gap-3 bg-white rounded-lg border border-gray-200 px-2 sm:px-4 py-2.5 sm:py-3 shadow-sm text-center sm:text-left"
-        >
-          <div className={`p-1.5 sm:p-2 rounded-md ${s.bg} ${s.color}`}>
-            {s.icon}
-          </div>
-          <div>
-            <p className="text-lg sm:text-xl font-bold text-gray-800 leading-none">
-              {s.value}
-            </p>
-            <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">
-              {isMobile
-                ? s.label
-                : s.label === "Total"
-                  ? "Total Patients"
-                  : s.label === "TB+"
-                    ? "TB Positive"
-                    : s.label === "Drug"
-                      ? "Drug Allergy"
-                      : "Food Allergy"}
-            </p>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  //   {
+  //     label: "Drug",
+  //     value: drugAllergy,
+  //     icon: <AlertTriangle className="w-4 h-4" />,
+  //     color: "text-orange-600",
+  //     bg: "bg-orange-50",
+  //   },
+  //   {
+  //     label: "Food",
+  //     value: foodAllergy,
+  //     icon: <UtensilsCrossed className="w-4 h-4" />,
+  //     color: "text-yellow-600",
+  //     bg: "bg-yellow-50",
+  //   },
+  // ];
+
+  // return (
+  //   <div className="grid grid-cols-3 gap-2 sm:gap-3  ">
+  //     {stats.map((s) => (
+  //       <div
+  //         key={s.label}
+  //         className="flex flex-col sm:flex-row items-center sm:items-center gap-1 sm:gap-3 bg-white rounded-lg border border-gray-200 px-2 sm:px-4 py-2.5 sm:py-3 shadow-sm text-center sm:text-left"
+  //       >
+  //         <div className={`p-1.5 sm:p-2 rounded-md ${s.bg} ${s.color}`}>
+  //           {s.icon}
+  //         </div>
+  //         <div>
+  //           <p className="text-lg sm:text-xl font-bold text-gray-800 leading-none">
+  //             {s.value}
+  //           </p>
+  //           <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">
+  //             {isMobile
+  //               ? s.label
+  //               : s.label === "Total"
+  //                 ? "Total Patients"
+  //                 : s.label === "Drug"
+  //                   ? "Drug Allergy"
+  //                   : "Food Allergy"}
+  //           </p>
+  //         </div>
+  //       </div>
+  //     ))}
+  //   </div>
+  // );
 };
 
 // ─── Mobile Patient Card ──────────────────────────────────────────────────────
@@ -338,6 +250,7 @@ const StatsBar = ({
 const MobilePatientCard = ({ patient }: { patient: Patient }) => {
   const { user } = useAuth();
   const [openUser, setOpenUser] = React.useState(false);
+
   const [openEdit, setOpenEdit] = React.useState(false);
   const [openPrescription, setOpenPrescription] = React.useState(false);
   const [openDelete, setOpenDelete] = React.useState(false);
@@ -363,7 +276,7 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
     }
   };
 
-  const primaryDiag = patient.patientDiagnosis?.[0];
+  // const primaryDiag = patient.patientDiagnosis?.[0];
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
@@ -383,9 +296,9 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
             {patient.gender} · {patient.age} yrs · {patient.birthdate}
           </p>
           {/* Risk flags */}
-          <div className="mt-1.5">
+          {/* <div className="mt-1.5">
             <RiskIndicators patient={patient} />
-          </div>
+          </div> */}
         </div>
         {/* Action buttons */}
         <div className="flex items-center gap-1 shrink-0">
@@ -442,7 +355,7 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
             {patient.address || "—"}
           </p>
         </div>
-        {primaryDiag && (
+        {/* {primaryDiag && (
           <div className="col-span-2">
             <span className="text-gray-400">Diagnosis</span>
             <div className="flex items-center gap-1.5 mt-0.5">
@@ -457,25 +370,26 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
               </p>
             )}
           </div>
-        )}
+        )} */}
       </div>
 
       {/* Drawers / dialogs */}
-      <FullRecordsDrawer
+      {/* <FullRecordsDrawer
         open={openUser}
         onOpenChange={setOpenUser}
         patient={patient}
-      />
+      /> */}
+
       <EditRecordsSheet
         open={openEdit}
         onOpenChange={setOpenEdit}
         patient={patient}
       />
-      <PrescriptionDrawer
+      {/* <PrescriptionDrawer
         open={openPrescription}
         onOpenChange={setOpenPrescription}
         patient={patient}
-      />
+      /> */}
 
       <Dialog open={openDelete} onOpenChange={setOpenDelete}>
         <DialogContent>
@@ -510,56 +424,57 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────
 
-const exportToCSV = (patients: Patient[]) => {
-  const headers = [
-    "First Name",
-    "Last Name",
-    "Gender",
-    "Age",
-    "Birth Date",
-    "Address",
-    "Contact Number",
-    "Added By",
-    "Diagnosis",
-    "TB Positive",
-    "Drug Allergy",
-    "Food Allergy",
-  ];
-  const rows = patients.map((p) => [
-    p.firstName,
-    p.lastName,
-    p.gender,
-    p.age,
-    p.birthdate,
-    p.address,
-    p.telephone,
-    p.addedBy,
-    (p.patientDiagnosis ?? [])
-      .map((d) => `${d.diagnosis}${d.severity ? ` (${d.severity})` : ""}`)
-      .join("; "),
-    p.isTBPositive ? "Yes" : "No",
-    p.drugAllergy ? "Yes" : "No",
-    p.foodAllergy ? "Yes" : "No",
-  ]);
-  const csv = [headers, ...rows]
-    .map((row) =>
-      row.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","),
-    )
-    .join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `medical-records-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast.success("Records exported successfully!");
-};
+// const exportToCSV = (patients: Patient[]) => {
+//   const headers = [
+//     "First Name",
+//     "Last Name",
+//     "Gender",
+//     "Age",
+//     "Birth Date",
+//     "Address",
+//     "Contact Number",
+//     "Added By",
+//     "Diagnosis",
+
+//     "Drug Allergy",
+//     "Food Allergy",
+//   ];
+//   const rows = patients.map((p) => [
+//     p.firstName,
+//     p.lastName,
+//     p.gender,
+//     p.age,
+//     p.birthdate,
+//     p.address,
+//     p.telephone,
+//     p.addedBy,
+//     (p.patientDiagnosis ?? [])
+//       .map((d) => `${d.diagnosis}${d.severity ? ` (${d.severity})` : ""}`)
+//       .join("; "),
+//     p.isTBPositive ? "Yes" : "No",
+//     p.drugAllergy ? "Yes" : "No",
+//     p.foodAllergy ? "Yes" : "No",
+//   ]);
+//   const csv = [headers, ...rows]
+//     .map((row) =>
+//       row.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","),
+//     )
+//     .join("\n");
+//   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+//   const url = URL.createObjectURL(blob);
+//   const a = document.createElement("a");
+//   a.href = url;
+//   a.download = `medical-records-${new Date().toISOString().slice(0, 10)}.csv`;
+//   a.click();
+//   URL.revokeObjectURL(url);
+//   toast.success("Records exported successfully!");
+// };
 
 // ─── Desktop Action Buttons ───────────────────────────────────────────────────
 
 const PatientActions = ({ patient }: { patient: Patient }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [openUser, setOpenUser] = React.useState(false);
   const [openEdit, setOpenEdit] = React.useState(false);
   const [openPrescription, setOpenPrescription] = React.useState(false);
@@ -569,20 +484,20 @@ const PatientActions = ({ patient }: { patient: Patient }) => {
 
   return (
     <div className="flex items-center gap-1">
-      <button
+      {/* <button
         onClick={() => setOpenUser(true)}
         title="View patient"
         className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
       >
         <UserIcon className="w-3.5 h-3.5 text-[#00a896]" />
-      </button>
-      <FullRecordsDrawer
+      </button> */}
+      {/* <FullRecordsDrawer
         open={openUser}
         onOpenChange={setOpenUser}
         patient={patient}
-      />
+      /> */}
 
-      <button
+      {/* <button
         onClick={() => setOpenEdit(true)}
         title="Edit patient"
         className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
@@ -593,22 +508,36 @@ const PatientActions = ({ patient }: { patient: Patient }) => {
         open={openEdit}
         onOpenChange={setOpenEdit}
         patient={patient}
-      />
+      /> */}
 
       {userIsDoctor && (
-        <button
-          onClick={() => setOpenPrescription(true)}
-          title="Prescriptions"
-          className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
-        >
-          <PillIcon className="w-3.5 h-3.5 text-[#00a896]" />
-        </button>
+        <div>
+          {/* <button
+            onClick={() => setOpenPrescription(true)}
+            title="Prescriptions"
+            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
+          >
+            <PillIcon className="w-3.5 h-3.5 text-[#00a896]" />
+          </button> */}
+
+          <button
+            onClick={() =>
+              navigate(`/add-consultation-record/${patient.id}`, {
+                state: patient,
+              })
+            }
+            title="Consultation Records"
+            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5 text-[#00a896]" />
+          </button>
+        </div>
       )}
-      <PrescriptionDrawer
+      {/* <PrescriptionDrawer
         open={openPrescription}
         onOpenChange={setOpenPrescription}
         patient={patient}
-      />
+      /> */}
     </div>
   );
 };
@@ -625,14 +554,14 @@ const DeletePatient = ({ patient }: { patient: Patient }) => {
       const newLog = push(logsRef);
       await remove(patientRef);
       await set(newLog, {
-        medicalRecordLog: `Record deleted by ${user?.firstName} ${user?.lastName}`,
+        medicalRecordLog: `Patient deleted by ${user?.firstName} ${user?.lastName}`,
         logTime: new Date().toLocaleString(),
       });
-      toast.success("Record has been deleted successfully!");
+      toast.success("Patient has been deleted successfully!");
       setOpenDeleteDialog(false);
     } catch (error) {
       console.error("Error deleting patient:", error);
-      toast.error("Failed to delete record!");
+      toast.error("Failed to delete patient!");
     }
   };
 
@@ -679,14 +608,31 @@ const DeletePatient = ({ patient }: { patient: Patient }) => {
 
 // ─── Column Definitions ───────────────────────────────────────────────────────
 
+const ClickName = ({ patient }: { patient: Patient }) => {
+  const navigate = useNavigate();
+
+  return (
+    <p
+      className="font-medium text-gray-800 text-sm cursor-pointer hover:text-[#00a896]"
+      onClick={() =>
+        navigate(`/view-consultation-record/${patient.id}`, {
+          state: patient,
+        })
+      }
+    >
+      {patient.firstName} {patient.lastName}
+    </p>
+  );
+};
+
 export const columns: ColumnDef<Patient>[] = [
-  {
-    id: "actions",
-    header: "",
-    enableSorting: false,
-    enableHiding: false,
-    cell: ({ row }) => <PatientActions patient={row.original} />,
-  },
+  // {
+  //   id: "actions",
+  //   header: "",
+  //   enableSorting: false,
+  //   enableHiding: false,
+  //   cell: ({ row }) => <PatientActions patient={row.original} />,
+  // },
   {
     id: "patient",
     header: "Patient",
@@ -700,7 +646,7 @@ export const columns: ColumnDef<Patient>[] = [
         />
         <div className="leading-tight">
           <p className="font-medium text-gray-800 text-sm">
-            {row.original.firstName} {row.original.lastName}
+            <ClickName patient={row.original} />
           </p>
           <p className="text-xs text-gray-400">{row.original.gender}</p>
         </div>
@@ -712,40 +658,40 @@ export const columns: ColumnDef<Patient>[] = [
   { accessorKey: "address", header: "Address" },
   { accessorKey: "telephone", header: "Contact Number" },
   { accessorKey: "addedBy", header: "Added By" },
-  {
-    accessorKey: "patientDiagnosis",
-    header: "Diagnosis",
-    cell: ({ row }) => {
-      const diagnosis = row.original.patientDiagnosis;
-      if (!diagnosis?.length)
-        return <span className="text-gray-300 text-xs">No diagnosis</span>;
-      return (
-        <div className="space-y-1.5 max-w-[280px]">
-          {diagnosis.map((diag, i) => (
-            <div key={i} className="flex flex-col gap-0.5">
-              <span className="text-sm font-medium text-gray-800">
-                {diag.diagnosis}
-              </span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <SeverityBadge severity={diag.severity} />
-                {diag.notes && (
-                  <span className="text-[11px] text-gray-400 italic">
-                    {diag.notes}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      );
-    },
-  },
-  {
-    id: "risks",
-    header: "Risk Flags",
-    enableSorting: false,
-    cell: ({ row }) => <RiskIndicators patient={row.original} />,
-  },
+  // {
+  //   accessorKey: "patientDiagnosis",
+  //   header: "Diagnosis",
+  //   cell: ({ row }) => {
+  //     const diagnosis = row.original.patientDiagnosis;
+  //     if (!diagnosis?.length)
+  //       return <span className="text-gray-300 text-xs">No diagnosis</span>;
+  //     return (
+  //       <div className="space-y-1.5 max-w-[280px]">
+  //         {diagnosis.map((diag, i) => (
+  //           <div key={i} className="flex flex-col gap-0.5">
+  //             <span className="text-sm font-medium text-gray-800">
+  //               {diag.diagnosis}
+  //             </span>
+  //             <div className="flex items-center gap-1.5 flex-wrap">
+  //               <SeverityBadge severity={diag.severity} />
+  //               {diag.notes && (
+  //                 <span className="text-[11px] text-gray-400 italic">
+  //                   {diag.notes}
+  //                 </span>
+  //               )}
+  //             </div>
+  //           </div>
+  //         ))}
+  //       </div>
+  //     );
+  //   },
+  // },
+  // {
+  //   id: "risks",
+  //   header: "Risk Flags",
+  //   enableSorting: false,
+  //   cell: ({ row }) => <RiskIndicators patient={row.original} />,
+  // },
   {
     id: "delete",
     header: "",
@@ -853,7 +799,7 @@ export function MedicalRecords() {
           />
           <div className="leading-tight">
             <p className="font-medium text-gray-800 text-sm">
-              {row.original.firstName} {row.original.lastName}
+              <ClickName patient={row.original} />
             </p>
             <p className="text-xs text-gray-400">{row.original.gender}</p>
           </div>
@@ -873,51 +819,51 @@ export function MedicalRecords() {
       filterFn: "includesString",
     },
     { accessorKey: "addedBy", header: "Added By", filterFn: "includesString" },
-    {
-      accessorKey: "patientDiagnosis",
-      header: "Diagnosis",
-      filterFn: (row, id, filterValue) => {
-        if (!filterValue) return true;
-        const diagnoses = row.original.patientDiagnosis || [];
-        const searchTerm = String(filterValue).toLowerCase();
-        return diagnoses.some(
-          (d) =>
-            d.diagnosis.toLowerCase().includes(searchTerm) ||
-            d.severity?.toLowerCase().includes(searchTerm) ||
-            d.notes?.toLowerCase().includes(searchTerm),
-        );
-      },
-      cell: ({ row }) => {
-        const diagnosis = row.original.patientDiagnosis;
-        if (!diagnosis?.length)
-          return <span className="text-gray-300 text-xs">No diagnosis</span>;
-        return (
-          <div className="space-y-1.5 max-w-[280px]">
-            {diagnosis.map((diag, i) => (
-              <div key={i} className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium text-gray-800">
-                  {diag.diagnosis}
-                </span>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <SeverityBadge severity={diag.severity} />
-                  {diag.notes && (
-                    <span className="text-[11px] text-gray-400 italic">
-                      {diag.notes}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      },
-    },
-    {
-      id: "risks",
-      header: "Risk Flags",
-      enableSorting: false,
-      cell: ({ row }) => <RiskIndicators patient={row.original} />,
-    },
+    // {
+    //   accessorKey: "patientDiagnosis",
+    //   header: "Diagnosis",
+    //   filterFn: (row, id, filterValue) => {
+    //     if (!filterValue) return true;
+    //     const diagnoses = row.original.patientDiagnosis || [];
+    //     const searchTerm = String(filterValue).toLowerCase();
+    //     return diagnoses.some(
+    //       (d) =>
+    //         d.diagnosis.toLowerCase().includes(searchTerm) ||
+    //         d.severity?.toLowerCase().includes(searchTerm) ||
+    //         d.notes?.toLowerCase().includes(searchTerm),
+    //     );
+    //   },
+    //   cell: ({ row }) => {
+    //     const diagnosis = row.original.patientDiagnosis;
+    //     if (!diagnosis?.length)
+    //       return <span className="text-gray-300 text-xs">No diagnosis</span>;
+    //     return (
+    //       <div className="space-y-1.5 max-w-[280px]">
+    //         {diagnosis.map((diag, i) => (
+    //           <div key={i} className="flex flex-col gap-0.5">
+    //             <span className="text-sm font-medium text-gray-800">
+    //               {diag.diagnosis}
+    //             </span>
+    //             <div className="flex items-center gap-1.5 flex-wrap">
+    //               <SeverityBadge severity={diag.severity} />
+    //               {diag.notes && (
+    //                 <span className="text-[11px] text-gray-400 italic">
+    //                   {diag.notes}
+    //                 </span>
+    //               )}
+    //             </div>
+    //           </div>
+    //         ))}
+    //       </div>
+    //     );
+    //   },
+    // },
+    // {
+    //   id: "risks",
+    //   header: "Risk Flags",
+    //   enableSorting: false,
+    //   cell: ({ row }) => <RiskIndicators patient={row.original} />,
+    // },
     {
       id: "delete",
       header: "",
@@ -1058,14 +1004,14 @@ export function MedicalRecords() {
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-
+        {/* 
         <button
           onClick={() => exportToCSV(filteredRows.map((r) => r.original))}
           className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium !bg-[#00a896] !text-white border border-gray-200 rounded-lg shadow-sm hover:opacity-90 transition sm:ml-auto flex-1 sm:flex-none justify-center"
         >
           <Download className="w-3.5 h-3.5" />
           {isMobile ? "CSV" : "Export CSV"}
-        </button>
+        </button> */}
       </div>
     </div>
   );
@@ -1116,15 +1062,15 @@ export function MedicalRecords() {
           </p>
         </div>
         <button
-          onClick={() => navigate("/add-record")}
+          onClick={() => navigate("/add-patient")}
           className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-semibold text-white !bg-[#00a896] rounded-lg shadow hover:opacity-90 transition"
         >
           <Plus className="w-4 h-4" />
-          {isMobile ? "Add" : "Add Record"}
+          {isMobile ? "Add" : "Add Patient"}
         </button>
       </div>
-
-      <StatsBar patients={data} isMobile={isMobile} />
+      {/* 
+      <StatsBar patients={data} isMobile={isMobile} /> */}
       {Toolbar}
 
       {isMobile ? (

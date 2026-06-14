@@ -1,0 +1,561 @@
+"use client";
+
+import * as React from "react";
+import { useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Card } from "./ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Calendar } from "./ui/calendar";
+import { CalendarIcon, User, MapPin, Phone, ShieldCheck } from "lucide-react";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
+import { db } from "@/firebaseConfig";
+import { ref, set, push, onValue, get } from "firebase/database";
+import { useAuth } from "@/auth/authprovider";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useNavigate } from "react-router-dom";
+
+function formatDate(date: Date | undefined) {
+  if (!date) return "";
+  return date.toLocaleDateString("en-US", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function isValidDate(date: Date | undefined) {
+  if (!date) return false;
+  return !isNaN(date.getTime());
+}
+
+export function AddPatient() {
+  const { user } = useAuth();
+  const isMobile = useIsMobile();
+  const navigate = useNavigate();
+  const [open, setOpen] = React.useState(false);
+  const [date, setDate] = React.useState<Date | undefined>(undefined);
+  const [month, setMonth] = React.useState<Date | undefined>(date);
+  const [value, setValue] = React.useState(formatDate(date));
+
+  const initialState = {
+    patientFirstName: "",
+    patientLastName: "",
+    patientGender: "",
+    patientAge: "",
+    patientSymptoms: "",
+    patientBirthdate: "",
+    patientTelephone: "",
+    patientAddress: "",
+    patientAddress2: "",
+    patientCity: "",
+    patientStateProvince: "",
+  };
+
+  const [fields, setFields] = useState(initialState);
+  const [openSections, setOpenSections] = useState<string[]>(["basic"]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [patientDiagnosis, setDiagnosis] = useState([
+    { diagnosis: "", severity: "", notes: "" },
+  ]);
+  const [familyHistory, setFamilyHistory] = useState([
+    {
+      relation: "",
+      age: "",
+      healthProblems: "",
+      goodHealth: true,
+      isAlive: true,
+    },
+  ]);
+  const [linkedUsers, setLinkedUsers] = React.useState<any[]>([]);
+  const [selectedLinkedUser, setSelectedLinkedUser] = React.useState("");
+
+  const userIsAdmin = user?.type?.toLowerCase() === "admin";
+  const userIsSecretary = user?.type?.toLowerCase() === "secretary";
+  const userIsDoctor = user?.type?.toLowerCase() === "doctor";
+
+  React.useEffect(() => {
+    if (!user) return;
+    const userRef = ref(db, `users/${user.uid}`);
+    const unsubscribe = onValue(userRef, async (snapshot) => {
+      const userData = snapshot.val();
+      if (!userData) return;
+      let linkedUserIds: string[] = [];
+      if (user.type?.toLowerCase() === "secretary") {
+        linkedUserIds = userData.doctors || [];
+      } else if (user.type?.toLowerCase() === "doctor") {
+        linkedUserIds = userData.secretaries || [];
+      }
+      const linkedUsersPromises = linkedUserIds.map(async (userId: string) => {
+        const linkedUserRef = ref(db, `users/${userId}`);
+        const linkedUserSnap = await get(linkedUserRef);
+        if (linkedUserSnap.exists()) {
+          return { id: userId, ...linkedUserSnap.val() };
+        }
+        return null;
+      });
+      const linkedUsersData = await Promise.all(linkedUsersPromises);
+      setLinkedUsers(linkedUsersData.filter(Boolean));
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  const handleChange = (key: string, value: string | boolean) => {
+    setFields((prev) => ({ ...prev, [key]: value }));
+    console.log(key, value);
+  };
+
+  const addPatient = async () => {
+    if (
+      !fields.patientFirstName ||
+      !fields.patientLastName ||
+      !fields.patientGender ||
+      !fields.patientAge
+    ) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const logsRef = ref(db, "logs/");
+      const patientsRef = ref(db, "patients");
+      const pendingRef = ref(db, "pending");
+      const patient = push(patientsRef);
+      const pending = push(pendingRef);
+      const newLog = push(logsRef);
+
+      const sharedWith = [user?.uid];
+      if (selectedLinkedUser) sharedWith.push(selectedLinkedUser);
+
+      if (userIsSecretary) {
+        await set(pending, {
+          patientId: patient.key,
+          firstName: fields.patientFirstName,
+          lastName: fields.patientLastName,
+          gender: fields.patientGender,
+          age: fields.patientAge,
+          birthdate: date ? date.toISOString().split("T")[0] : null,
+          telephone: fields.patientTelephone,
+          address1: fields.patientAddress,
+          address2: fields.patientAddress2,
+          city: fields.patientCity,
+          state: fields.patientStateProvince,
+
+          address: [
+            fields.patientAddress,
+            fields.patientAddress2,
+            fields.patientCity,
+            fields.patientStateProvince,
+          ]
+            .filter(Boolean)
+            .join(", "),
+
+          records: {},
+
+          status: "pending",
+          addedBy: user?.email,
+          createdBy: user?.uid,
+          createdAt: Date.now(),
+          sharedWith: sharedWith,
+        });
+        await set(newLog, {
+          medicalRecordLog: `Medical Patient added for approval by ${user?.firstName} ${user?.lastName}`,
+          logTime: new Date().toLocaleString(),
+        });
+        toast.success("Patient has been added for approval!");
+      } else {
+        await set(patient, {
+          patientId: patient.key,
+          firstName: fields.patientFirstName,
+          lastName: fields.patientLastName,
+          gender: fields.patientGender,
+          age: fields.patientAge,
+          birthdate: date ? date.toISOString().split("T")[0] : null,
+          telephone: fields.patientTelephone,
+          address1: fields.patientAddress,
+          address2: fields.patientAddress2,
+          city: fields.patientCity,
+          state: fields.patientStateProvince,
+
+          address: [
+            fields.patientAddress,
+            fields.patientAddress2,
+            fields.patientCity,
+            fields.patientStateProvince,
+          ]
+            .filter(Boolean)
+            .join(", "),
+
+          records: {},
+
+          addedBy: user?.email,
+          createdBy: user?.uid,
+          createdAt: Date.now(),
+          sharedWith: sharedWith,
+        });
+        await set(newLog, {
+          medicalRecordLog: `Medical Patient added by ${user?.firstName} ${user?.lastName}`,
+          logTime: new Date().toLocaleString(),
+        });
+        toast.success("Patient has been added successfully!");
+      }
+
+      setFields(initialState);
+      setSelectedLinkedUser("");
+      setOpenSections(["basic"]);
+    } catch (error) {
+      console.error("Error adding record:", error);
+      toast.error("Failed to add record. Please try again.");
+    } finally {
+      setIsLoading(false);
+      navigate("/records");
+    }
+  };
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        addPatient();
+      }}
+      className="space-y-6 md:space-y-8"
+    >
+      <Card className="flex-1 p-6 md:p-8">
+        {/* ── HEADER ── */}
+        <div className="text-center mb-8">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight">
+            Medical Patient Form
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Fill in all required fields marked with{" "}
+            <span className="text-red-400">*</span>
+          </p>
+          <div className="mt-4 h-1 w-16 bg-[#00c4b4] rounded-full mx-auto" />
+        </div>
+
+        <div className="px-0 md:px-4 lg:px-8">
+          <Card className="p-6 md:p-8 rounded-2xl border border-gray-100 shadow-sm">
+            <div className="max-w-5xl mx-auto space-y-10">
+              {/* ── PATIENT INFORMATION ── */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
+                  <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
+                    <User className="w-4 h-4 text-[#00a896]" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg md:text-xl font-semibold text-gray-800">
+                      Patient Information
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      Basic demographic details
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Field>
+                    <Input
+                      placeholder="Enter first name *"
+                      value={fields.patientFirstName}
+                      onChange={(e) =>
+                        handleChange("patientFirstName", e.target.value)
+                      }
+                      required
+                    />
+                    <FieldDescription>First Name</FieldDescription>
+                  </Field>
+
+                  <Field>
+                    <Input
+                      placeholder="Enter last name *"
+                      value={fields.patientLastName}
+                      onChange={(e) =>
+                        handleChange("patientLastName", e.target.value)
+                      }
+                      required
+                    />
+                    <FieldDescription>Last Name</FieldDescription>
+                  </Field>
+
+                  <Field>
+                    <InputGroup>
+                      <InputGroupInput
+                        id="date-required"
+                        value={value}
+                        placeholder="June 01, 2025"
+                        onChange={(e) => {
+                          handleChange("patientBirthDate", e.target.value);
+                          const date = new Date(e.target.value);
+                          setValue(e.target.value);
+                          if (isValidDate(date)) {
+                            setDate(date);
+                            setMonth(date);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setOpen(true);
+                          }
+                        }}
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <Popover open={open} onOpenChange={setOpen}>
+                          <PopoverTrigger asChild>
+                            <InputGroupButton
+                              id="date-picker"
+                              variant="ghost"
+                              size="icon-xs"
+                              aria-label="Select date"
+                              className="!bg-[#00a896] text-white !hover:bg-[#028090] border-none"
+                            >
+                              <CalendarIcon />
+                              <span className="sr-only">Select date</span>
+                            </InputGroupButton>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-auto overflow-hidden p-0"
+                            align="end"
+                            alignOffset={-8}
+                            sideOffset={10}
+                          >
+                            <Calendar
+                              mode="single"
+                              selected={date}
+                              month={month}
+                              onMonthChange={setMonth}
+                              className="text-white"
+                              onSelect={(date) => {
+                                setDate(date);
+                                setValue(formatDate(date));
+                                setOpen(false);
+                              }}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </InputGroupAddon>
+                    </InputGroup>
+                    <FieldDescription>Date of Birth</FieldDescription>
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Field>
+                    <Input
+                      type="number"
+                      placeholder="Enter age *"
+                      value={fields.patientAge}
+                      onChange={(e) =>
+                        handleChange("patientAge", e.target.value)
+                      }
+                      required
+                    />
+                    <FieldDescription>Patient Age</FieldDescription>
+                  </Field>
+
+                  <Select
+                    value={fields.patientGender}
+                    onValueChange={(value) =>
+                      handleChange("patientGender", value)
+                    }
+                  >
+                    <SelectTrigger className="!bg-[#00a896] w-full border-gray-300 !text-white">
+                      <SelectValue placeholder="Select Gender *" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem
+                        className="!bg-white !text-blue-500"
+                        value="MALE"
+                      >
+                        Male
+                      </SelectItem>
+                      <SelectItem
+                        className="!bg-white !text-red-500"
+                        value="FEMALE"
+                      >
+                        Female
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* ── ADDRESS ── */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
+                  <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-4 h-4 text-[#00a896]" />
+                  </div>
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-800">
+                    Address
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <Field>
+                    <Input
+                      type="text"
+                      placeholder="Street address, building, unit..."
+                      value={fields.patientAddress}
+                      onChange={(e) =>
+                        handleChange("patientAddress", e.target.value)
+                      }
+                    />
+                    <FieldDescription>Address Line 1</FieldDescription>
+                  </Field>
+                  <Field>
+                    <Input
+                      type="text"
+                      placeholder="Apartment, suite, etc. (optional)"
+                      value={fields.patientAddress2}
+                      onChange={(e) =>
+                        handleChange("patientAddress2", e.target.value)
+                      }
+                    />
+                    <FieldDescription>Address Line 2</FieldDescription>
+                  </Field>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Field>
+                      <Input
+                        type="text"
+                        placeholder="City"
+                        value={fields.patientCity}
+                        onChange={(e) =>
+                          handleChange("patientCity", e.target.value)
+                        }
+                      />
+                      <FieldDescription>City</FieldDescription>
+                    </Field>
+                    <Field className="mx-auto w-full">
+                      <Input
+                        type="text"
+                        placeholder="State or Province"
+                        value={fields.patientStateProvince}
+                        onChange={(e) =>
+                          handleChange("patientStateProvince", e.target.value)
+                        }
+                      />
+                      <FieldDescription>State / Province</FieldDescription>
+                    </Field>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── CONTACT NUMBER ── */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
+                  <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
+                    <Phone className="w-4 h-4 text-[#00a896]" />
+                  </div>
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-800">
+                    Contact Number
+                  </h2>
+                </div>
+                <Field>
+                  <Input
+                    type="text"
+                    placeholder="+63 912 345 6789"
+                    value={fields.patientTelephone}
+                    onChange={(e) =>
+                      handleChange("patientTelephone", e.target.value)
+                    }
+                  />
+                </Field>
+              </div>
+
+              {/* ── PRIVACY NOTICE ── */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
+                  <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
+                    <ShieldCheck className="w-4 h-4 text-[#00a896]" />
+                  </div>
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-800">
+                    Privacy Notice
+                  </h2>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <Field>
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <Checkbox
+                        className="size-5 mt-0.5 rounded-none !border-gray-400
+                          data-[state=unchecked]:!bg-white
+                          data-[state=checked]:!bg-[#00a896]"
+                      />
+                      <span className="text-sm text-gray-700 leading-relaxed">
+                        I confirm that I have informed the patient about the
+                        privacy notice.
+                      </span>
+                    </label>
+                  </Field>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </Card>
+
+      {/* ── SHARE WITH LINKED USER ── */}
+      {!userIsAdmin && linkedUsers.length > 0 && (
+        <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+          <Label className="text-base font-semibold text-blue-800 mb-3 block">
+            {userIsSecretary && "Share with Doctor"}
+            {userIsDoctor && "Share with Secretary"}
+          </Label>
+          <Select
+            value={selectedLinkedUser}
+            onValueChange={setSelectedLinkedUser}
+          >
+            <SelectTrigger className="!bg-white !text-base md:!text-lg h-12 md:h-14 border-blue-300">
+              <SelectValue
+                placeholder={`Select a ${
+                  userIsSecretary ? "doctor" : "secretary"
+                } to share this record with`}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {linkedUsers.map((linkedUser) => (
+                <SelectItem key={linkedUser.id} value={linkedUser.id}>
+                  {linkedUser.firstName} {linkedUser.lastName}
+                  {linkedUser.field && ` - ${linkedUser.field}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* ── SUBMIT ── */}
+      <div className="flex justify-center mt-8 md:mt-10 pb-6">
+        <Button
+          type="submit"
+          disabled={isLoading}
+          className="!bg-[#00a896] hover:!bg-[#028090] !text-white !px-12 !py-6 !text-lg font-semibold rounded-xl transition-all disabled:opacity-50 shadow-md"
+        >
+          {isLoading ? "Saving..." : "Save Patient"}
+        </Button>
+      </div>
+    </form>
+  );
+}

@@ -7,13 +7,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import type { Patient } from "./medical_records";
+// import type { Patient } from "./medical_records";
+import type { Patient, MedicalRecord } from "./view-consultation-records";
 import { ViewFullPatient } from "./view-full-records";
 
 type FullRecordsDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  patient: Patient;
+  patient: Patient & MedicalRecord;
 };
 
 export function FullRecordsDrawer({

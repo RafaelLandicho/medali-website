@@ -68,24 +68,9 @@ import { toast } from "sonner";
 import { db } from "@/firebaseConfig";
 import { ref, onValue, remove, push, set } from "firebase/database";
 import { useAuth } from "@/auth/authprovider";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { PrescriptionDrawer } from "./edit-prescription-drawer";
 import { FullPrescriptionDrawer } from "./view-full-prescription-drawer";
-
-// ─── useIsMobile hook ─────────────────────────────────────────────────────────
-
-function useIsMobile(breakpoint = 640): boolean {
-  const [isMobile, setIsMobile] = React.useState(false);
-
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
-    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    setIsMobile(mql.matches);
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, [breakpoint]);
-
-  return isMobile;
-}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

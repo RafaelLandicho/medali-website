@@ -27,6 +27,9 @@ import { AddRecords } from "./components/add-records";
 import { Spinner } from "@/components/ui/spinner";
 import { PendingRecords } from "./components/view-pending";
 import { EditProfile } from "./components/edit-profile";
+import { AddPatient } from "./components/add-patient";
+import { AddConsultationRecords } from "./components/add-consultation-record";
+import { ConsultationRecords } from "./components/view-consultation-records";
 import { Activity } from "lucide-react";
 
 function NavigateToMyProfile() {
@@ -221,6 +224,36 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/add-patient"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <AddPatient />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/add-consultation-record/:patientId"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <AddConsultationRecords />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/view-consultation-record/:patientId"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ConsultationRecords />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/users"
@@ -265,7 +298,6 @@ function App() {
             }
           />
 
-          {/* View other profiles */}
           <Route
             path="/profile/:uid"
             element={

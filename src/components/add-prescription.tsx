@@ -2,17 +2,10 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Field, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { ClipboardList, Pill, Stethoscope, FileText, User } from "lucide-react";
+import { ClipboardList, Pill, Stethoscope, User } from "lucide-react";
 import { useState, useEffect } from "react";
 import { db } from "@/firebaseConfig";
-import { ref, push, set } from "firebase/database";
+import { ref, set, onValue } from "firebase/database";
 import { useAuth } from "@/auth/authprovider";
 
 export type User = {
@@ -31,12 +24,15 @@ export type User = {
 
 type AddPrescriptionProps = {
   patient: {
+    // Patient-level fields
     patientId: string;
     firstName: string;
     lastName: string;
     gender?: string;
     age?: number;
     address: string;
+    // Record-level fields — scoped to the specific record
+    recordId: string;
     patientDiagnosis: {
       diagnosis: string;
       severity: string;
@@ -47,40 +43,64 @@ type AddPrescriptionProps = {
 
 export function AddPrescription({ patient }: AddPrescriptionProps) {
   const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [alreadyExists, setAlreadyExists] = useState(false);
 
   const [prescriptions, setPrescriptions] = useState([
     { medicine: "", unit: "", dosage: "", purpose: "", frequency: "" },
   ]);
+
   const [diagnosisPres, setDiagnosisPres] = useState<
     { diagnosis: string; severity: string; notes: string }[]
   >([]);
 
-  useEffect(() => {
-    console.log("FULL PATIENT:", patient);
-
-    if (patient) {
-      console.log("Loaded patient:", patient);
-      console.log(patient.patientDiagnosis);
-      if (patient.patientDiagnosis && patient.patientDiagnosis.length > 0) {
-        setDiagnosisPres(
-          patient.patientDiagnosis.map((d) => ({
-            diagnosis: d.diagnosis,
-            severity: d.severity,
-            notes: d.notes,
-          })),
-        );
-      } else {
-        setDiagnosisPres([{ diagnosis: "", severity: "", notes: "" }]);
-      }
-    }
-  }, [patient]);
-
   const [fields, setFields] = useState({
-    patientDiagnosis: "",
     patientExamination: "",
     patientRecommendation: "",
-    dateIssued: "",
   });
+
+  useEffect(() => {
+    if (!patient?.patientId || !patient?.recordId) return;
+
+    // Pre-fill diagnosis from the record
+    if (patient.patientDiagnosis?.length) {
+      setDiagnosisPres(
+        patient.patientDiagnosis.map((d) => ({
+          diagnosis: d.diagnosis,
+          severity: d.severity,
+          notes: d.notes,
+        })),
+      );
+    } else {
+      setDiagnosisPres([{ diagnosis: "", severity: "", notes: "" }]);
+    }
+
+    // Check if a prescription already exists for this record
+    const prescriptionRef = ref(
+      db,
+      `patients/${patient.patientId}/records/${patient.recordId}/prescription`,
+    );
+
+    const unsub = onValue(prescriptionRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const existing = snapshot.val();
+        // Load existing prescription into state for editing
+        setAlreadyExists(true);
+
+        if (existing.drugs) setPrescriptions(existing.drugs);
+        if (existing.diagnosis) setDiagnosisPres(existing.diagnosis);
+        setFields({
+          patientExamination: existing.examination ?? "",
+          patientRecommendation: existing.recommendation ?? "",
+        });
+      } else {
+        setAlreadyExists(false);
+      }
+      setIsLoading(false);
+    });
+
+    return () => unsub();
+  }, [patient?.patientId, patient?.recordId]);
 
   const handleChange = (key: string, value: string) => {
     setFields((prev) => ({ ...prev, [key]: value }));
@@ -91,6 +111,7 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
       ...prescriptions,
       { medicine: "", unit: "", dosage: "", purpose: "", frequency: "" },
     ]);
+
   const handleRemovePrescription = (index: number) =>
     setPrescriptions(prescriptions.filter((_, i) => i !== index));
 
@@ -109,6 +130,7 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
       ...diagnosisPres,
       { diagnosis: "", severity: "", notes: "" },
     ]);
+
   const handleRemoveDiagnosis = (index: number) =>
     setDiagnosisPres(diagnosisPres.filter((_, i) => i !== index));
 
@@ -122,20 +144,19 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
     setDiagnosisPres(updated);
   };
 
-  const addPrescription = async () => {
+  const savePrescription = async () => {
     try {
-      const logsRef = ref(db, "logs/");
-      const prescriptionsRef = ref(db, `prescriptions/`);
-      const newPrescription = push(prescriptionsRef);
-      const newLog = push(logsRef);
+      const prescriptionRef = ref(
+        db,
+        `patients/${patient.patientId}/records/${patient.recordId}/prescription`,
+      );
 
-      await set(newPrescription, {
+      await set(prescriptionRef, {
         patientFirstName: patient.firstName,
         patientLastName: patient.lastName,
         patientAddress: patient.address,
         patientAge: patient.age,
         patientGender: patient.gender,
-        prescriptionId: newPrescription.key,
         diagnosis: diagnosisPres,
         examination: fields.patientExamination,
         recommendation: fields.patientRecommendation,
@@ -144,28 +165,53 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
         field: user?.field,
         doctorId: user?.medicalId,
         createdBy: user?.uid,
-        createdAt: new Date().toLocaleString(),
+        updatedAt: new Date().toLocaleString(),
       });
 
+      // Also log it
+      const logsRef = ref(db, "logs/");
+      const { push } = await import("firebase/database");
+      const newLog = push(logsRef);
       await set(newLog, {
-        prescriptionLog: `Prescription added by ${user?.firstName} ${user?.lastName} `,
+        prescriptionLog: `Prescription ${alreadyExists ? "updated" : "added"} by ${user?.firstName} ${user?.lastName} for record ${patient.recordId}`,
         logTime: new Date().toLocaleString(),
       });
+      console.log(
+        "Writing to:",
+        `patients/${patient.patientId}/records/${patient.recordId}/prescription`,
+      );
 
-      toast.success(`Prescription added for ${patient.firstName}`);
-      console.log("prescription added");
+      toast.success(
+        `Prescription ${alreadyExists ? "updated" : "added"} for ${patient.firstName}`,
+      );
+      setAlreadyExists(true); // it now exists
     } catch (error) {
       console.error(error);
-      toast.error("Failed to add prescription");
+      toast.error("Failed to save prescription");
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-10 text-gray-500 text-sm">
+        Loading…
+      </div>
+    );
+  }
+
   return (
     <div className="w-full">
+      {alreadyExists && (
+        <div className="mb-4 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium">
+          A prescription already exists for this record. Saving will overwrite
+          it.
+        </div>
+      )}
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          addPrescription();
+          savePrescription();
         }}
       >
         <FieldGroup>
@@ -431,7 +477,7 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
                   type="submit"
                   className="!bg-[#00a896] hover:!bg-[#028090] !text-white !px-12 !py-6 !text-lg font-semibold rounded-xl transition-all shadow-md"
                 >
-                  Save Prescription
+                  {alreadyExists ? "Update Prescription" : "Save Prescription"}
                 </Button>
               </div>
             </div>

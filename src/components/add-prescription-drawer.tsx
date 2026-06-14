@@ -1,5 +1,3 @@
-"use client";
-
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,15 +17,13 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import type { Patient } from "./medical_records";
-
 import { AddPrescription } from "./add-prescription";
-
+import type { MedicalRecord } from "./view-consultation-records";
 type PrescriptionDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  patient: Patient;
+  patient: Patient & MedicalRecord & { recordId: string };
 };
-
 export function PrescriptionDrawer({
   open,
   onOpenChange,
@@ -49,6 +45,7 @@ export function PrescriptionDrawer({
             <AddPrescription
               patient={{
                 patientId: patient.id,
+                recordId: patient.recordId,
                 firstName: patient.firstName,
                 lastName: patient.lastName,
                 gender: patient.gender,
@@ -62,7 +59,6 @@ export function PrescriptionDrawer({
       </Dialog>
     );
   }
-
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent>
@@ -77,6 +73,7 @@ export function PrescriptionDrawer({
           <AddPrescription
             patient={{
               patientId: patient.id,
+              recordId: patient.recordId,
               firstName: patient.firstName,
               lastName: patient.lastName,
               gender: patient.gender,

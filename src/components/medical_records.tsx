@@ -190,59 +190,35 @@ const StatsBar = ({
   // const drugAllergy = patients.filter((p) => p.drugAllergy).length;
   // const foodAllergy = patients.filter((p) => p.foodAllergy).length;
 
-  // const stats = [
-  //   {
-  //     label: "Total",
-  //     value: total,
-  //     icon: <Users className="w-4 h-4" />,
-  //     color: "text-[#00a896]",
-  //     bg: "bg-[#00a896]/10",
-  //   },
+  const stats = [
+    {
+      label: "Total Patients:",
+      value: total,
+      icon: <Users className="w-4 h-4" />,
+      color: "text-[#00a896]",
+      bg: "bg-[#00a896]/10",
+    },
+  ];
 
-  //   {
-  //     label: "Drug",
-  //     value: drugAllergy,
-  //     icon: <AlertTriangle className="w-4 h-4" />,
-  //     color: "text-orange-600",
-  //     bg: "bg-orange-50",
-  //   },
-  //   {
-  //     label: "Food",
-  //     value: foodAllergy,
-  //     icon: <UtensilsCrossed className="w-4 h-4" />,
-  //     color: "text-yellow-600",
-  //     bg: "bg-yellow-50",
-  //   },
-  // ];
-
-  // return (
-  //   <div className="grid grid-cols-3 gap-2 sm:gap-3  ">
-  //     {stats.map((s) => (
-  //       <div
-  //         key={s.label}
-  //         className="flex flex-col sm:flex-row items-center sm:items-center gap-1 sm:gap-3 bg-white rounded-lg border border-gray-200 px-2 sm:px-4 py-2.5 sm:py-3 shadow-sm text-center sm:text-left"
-  //       >
-  //         <div className={`p-1.5 sm:p-2 rounded-md ${s.bg} ${s.color}`}>
-  //           {s.icon}
-  //         </div>
-  //         <div>
-  //           <p className="text-lg sm:text-xl font-bold text-gray-800 leading-none">
-  //             {s.value}
-  //           </p>
-  //           <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">
-  //             {isMobile
-  //               ? s.label
-  //               : s.label === "Total"
-  //                 ? "Total Patients"
-  //                 : s.label === "Drug"
-  //                   ? "Drug Allergy"
-  //                   : "Food Allergy"}
-  //           </p>
-  //         </div>
-  //       </div>
-  //     ))}
-  //   </div>
-  // );
+  return (
+    <div className="grid grid-cols-3 gap-2 sm:gap-3  ">
+      {stats.map((s) => (
+        <div
+          key={s.label}
+          className="flex flex-col sm:flex-row items-center sm:items-center gap-1 sm:gap-3 bg-white rounded-lg border border-gray-200 px-2 sm:px-4 py-2.5 sm:py-3 shadow-sm text-center sm:text-left"
+        >
+          <div className={`p-1.5 sm:p-2 rounded-md ${s.bg} ${s.color}`}>
+            {s.icon}
+          </div>
+          <div>
+            <p className="text-lg sm:text-xl font-bold text-gray-800 leading-none">
+              {s.label} {s.value}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 };
 
 // ─── Mobile Patient Card ──────────────────────────────────────────────────────
@@ -1069,8 +1045,8 @@ export function MedicalRecords() {
           {isMobile ? "Add" : "Add Patient"}
         </button>
       </div>
-      {/* 
-      <StatsBar patients={data} isMobile={isMobile} /> */}
+
+      <StatsBar patients={data} isMobile={isMobile} />
       {Toolbar}
 
       {isMobile ? (

@@ -169,37 +169,37 @@ const StatsBar = ({
 
   const stats = [
     {
-      label: "Total Prescriptions",
+      label: "Total Prescriptions:  ",
       shortLabel: "Total",
       value: total,
       icon: <ClipboardList className="w-4 h-4" />,
       color: "text-[#00a896]",
       bg: "bg-[#00a896]/10",
     },
-    {
-      label: "Unique Patients",
-      shortLabel: "Patients",
-      value: uniquePatients,
-      icon: <Users className="w-4 h-4" />,
-      color: "text-blue-600",
-      bg: "bg-blue-50",
-    },
-    {
-      label: "Drugs Prescribed",
-      shortLabel: "Drugs",
-      value: totalDrugs,
-      icon: <Pill className="w-4 h-4" />,
-      color: "text-purple-600",
-      bg: "bg-purple-50",
-    },
-    {
-      label: "With Diagnosis",
-      shortLabel: "Diagnosed",
-      value: withDiagnosis,
-      icon: <Stethoscope className="w-4 h-4" />,
-      color: "text-orange-600",
-      bg: "bg-orange-50",
-    },
+    // {
+    //   label: "Unique Patients",
+    //   shortLabel: "Patients",
+    //   value: uniquePatients,
+    //   icon: <Users className="w-4 h-4" />,
+    //   color: "text-blue-600",
+    //   bg: "bg-blue-50",
+    // },
+    // {
+    //   label: "Drugs Prescribed",
+    //   shortLabel: "Drugs",
+    //   value: totalDrugs,
+    //   icon: <Pill className="w-4 h-4" />,
+    //   color: "text-purple-600",
+    //   bg: "bg-purple-50",
+    // },
+    // {
+    //   label: "With Diagnosis",
+    //   shortLabel: "Diagnosed",
+    //   value: withDiagnosis,
+    //   icon: <Stethoscope className="w-4 h-4" />,
+    //   color: "text-orange-600",
+    //   bg: "bg-orange-50",
+    // },
   ];
 
   return (
@@ -214,6 +214,7 @@ const StatsBar = ({
           </div>
           <div>
             <p className="text-lg sm:text-xl font-bold text-gray-800 leading-none">
+              {s.label}
               {s.value}
             </p>
             <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">

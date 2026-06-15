@@ -147,9 +147,9 @@ const StatCard = ({
     <div className={`p-1.5 sm:p-2 rounded-md ${bg} ${color}`}>{icon}</div>
     <div>
       <p className="text-lg sm:text-xl font-bold text-gray-800 leading-none">
+        {label}
         {value}
       </p>
-      <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">{label}</p>
     </div>
   </div>
 );
@@ -1150,7 +1150,7 @@ export function ConsultationRecords() {
 
         <TabsContent value="records" className="flex flex-col gap-4 mt-4">
           <StatCard
-            label="Total Records"
+            label="Total Records: "
             value={records.length}
             icon={<ClipboardList className="w-4 h-4" />}
             color="text-[#00a896]"
@@ -1162,9 +1162,18 @@ export function ConsultationRecords() {
             <>
               {filteredRows.length === 0 ? (
                 <div className="rounded-xl border border-gray-200 bg-white p-6">
-                  <EmptyRecords>
-                    <AddRecordsDrawer />
-                  </EmptyRecords>
+                  <div className="rounded-xl border border-gray-200 bg-white p-10 flex flex-col items-center justify-center text-center gap-2">
+                    <div className="w-10 h-10 rounded-lg bg-[#00a896]/10 flex items-center justify-center">
+                      <ClipboardList className="w-5 h-5 text-[#00a896]" />
+                    </div>
+                    <p className="text-sm font-medium text-gray-700">
+                      No consultation records yet
+                    </p>
+                    <p className="text-xs text-gray-400 max-w-xs">
+                      Consultation Records created for your patient will appear
+                      here.
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
@@ -1296,9 +1305,20 @@ export function ConsultationRecords() {
                             colSpan={columns.length}
                             className="h-32 text-center"
                           >
-                            <EmptyRecords>
-                              <AddRecordsDrawer />
-                            </EmptyRecords>
+                            <div className="rounded-xl border border-gray-200 bg-white p-6">
+                              <div className="rounded-xl border border-gray-200 bg-white p-10 flex flex-col items-center justify-center text-center gap-2">
+                                <div className="w-10 h-10 rounded-lg bg-[#00a896]/10 flex items-center justify-center">
+                                  <ClipboardList className="w-5 h-5 text-[#00a896]" />
+                                </div>
+                                <p className="text-sm font-medium text-gray-700">
+                                  No consultation records yet
+                                </p>
+                                <p className="text-xs text-gray-400 max-w-xs">
+                                  Consultation Records created for your patient
+                                  will appear here.
+                                </p>
+                              </div>
+                            </div>
                           </TableCell>
                         </TableRow>
                       )}
@@ -1313,7 +1333,7 @@ export function ConsultationRecords() {
 
         <TabsContent value="prescriptions" className="flex flex-col gap-4 mt-4">
           <StatCard
-            label="Total Prescriptions"
+            label="Total Prescriptions: "
             value={prescriptionRecords.length}
             icon={<Pill className="w-4 h-4" />}
             color="text-purple-600"

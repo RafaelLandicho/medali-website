@@ -313,7 +313,7 @@ const ApproveButton = (
     variant="outline"
     size="icon"
     {...props}
-    className={`w-7 h-7 border-green-200 !bg-white hover:bg-green-50 ${props.className ?? ""}`}
+    className={`w-7 h-7  !bg-[#00c4b4] text-white ${props.className ?? ""}`}
   >
     <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
   </Button>
@@ -326,7 +326,7 @@ const RejectButton = (
     variant="outline"
     size="icon"
     {...props}
-    className={`w-7 h-7 border-red-200 !bg-white hover:bg-red-50 ${props.className ?? ""}`}
+    className={`w-7 h-7 border-red-200 !bg-red-500 !text-white hover:bg-red-50 ${props.className ?? ""}`}
   >
     <XCircle className="w-3.5 h-3.5 text-red-500" />
   </Button>

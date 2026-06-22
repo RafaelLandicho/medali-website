@@ -239,7 +239,24 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout>
-                  <AddConsultationRecords />
+                  <AddConsultationRecords
+                    patient={{
+                      id: "",
+                      firstName: "",
+                      lastName: "",
+                      gender: "",
+                      age: 0,
+                      birthdate: "",
+                      address: "",
+                      address1: "",
+                      address2: "",
+                      city: "",
+                      province: "",
+                      telephone: "",
+                      addedBy: "",
+                      records: undefined,
+                    }}
+                  />
                 </Layout>
               </ProtectedRoute>
             }

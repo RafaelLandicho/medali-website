@@ -296,7 +296,11 @@ const ConfirmAction = ({
             {loading ? confirmingLabel : confirmLabel}
           </Button>
           <DialogClose asChild>
-            <Button variant="outline" disabled={loading}>
+            <Button
+              variant="outline"
+              className="!bg-red-600 !text-white"
+              disabled={loading}
+            >
               Cancel
             </Button>
           </DialogClose>
@@ -313,7 +317,7 @@ const ApproveButton = (
     variant="outline"
     size="icon"
     {...props}
-    className={`w-7 h-7  !bg-[#00c4b4] text-white ${props.className ?? ""}`}
+    className={`w-7 h-7 border-green-200 !bg-white hover:bg-green-50 ${props.className ?? ""}`}
   >
     <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
   </Button>
@@ -326,7 +330,7 @@ const RejectButton = (
     variant="outline"
     size="icon"
     {...props}
-    className={`w-7 h-7 border-red-200 !bg-red-500 !text-white hover:bg-red-50 ${props.className ?? ""}`}
+    className={`w-7 h-7 border-red-200 !bg-white hover:bg-red-50 ${props.className ?? ""}`}
   >
     <XCircle className="w-3.5 h-3.5 text-red-500" />
   </Button>
@@ -362,7 +366,7 @@ const PendingPatientActions = ({
   };
 
   const handleReject = async () => {
-    onRemove(patient.id); // optimistic remove
+    onRemove(patient.id);
     await remove(ref(db, `pending/patients/${patient.id}`));
     await logAction(
       `Patient rejected by ${user.firstName} ${user.lastName}: ${patient.firstName} ${patient.lastName}`,
@@ -487,7 +491,7 @@ const PendingRecordActions = ({
         }
         confirmLabel="Approve"
         confirmingLabel="Approving…"
-        confirmClassName="bg-green-600 hover:bg-green-700 text-white"
+        confirmClassName="!bg-green-600 hover:bg-green-700 !text-white"
         errorMessage="Failed to approve record."
         onConfirm={handleApprove}
       />
@@ -497,7 +501,7 @@ const PendingRecordActions = ({
         description="Permanently delete this pending consultation record? This cannot be undone."
         confirmLabel="Reject"
         confirmingLabel="Rejecting…"
-        confirmClassName="bg-red-600 hover:bg-red-700 text-white"
+        confirmClassName="!bg-red-600 hover:bg-red-700 !text-white"
         errorMessage="Failed to reject record."
         onConfirm={handleReject}
       />
@@ -628,7 +632,7 @@ const PendingUpdateActions = ({
         }
         confirmLabel="Approve"
         confirmingLabel="Approving…"
-        confirmClassName="bg-green-600 hover:bg-green-700 text-white"
+        confirmClassName="!bg-green-600 hover:bg-green-700 !text-white"
         errorMessage="Failed to approve update."
         onConfirm={handleApprove}
       />
@@ -646,7 +650,7 @@ const PendingUpdateActions = ({
         }
         confirmLabel="Reject"
         confirmingLabel="Rejecting…"
-        confirmClassName="bg-red-600 hover:bg-red-700 text-white"
+        confirmClassName="!bg-green-600 hover:bg-red-700 !text-white"
         errorMessage="Failed to reject update."
         onConfirm={handleReject}
       />

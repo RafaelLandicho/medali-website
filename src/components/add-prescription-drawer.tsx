@@ -23,11 +23,13 @@ type PrescriptionDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   patient: Patient & MedicalRecord & { recordId: string };
+  readOnly?: boolean;
 };
 export function PrescriptionDrawer({
   open,
   onOpenChange,
   patient,
+  readOnly = false,
 }: PrescriptionDrawerProps) {
   const isMobile = useIsMobile();
   if (!isMobile) {

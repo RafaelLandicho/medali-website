@@ -141,7 +141,7 @@ export function AddPatient() {
     try {
       const logsRef = ref(db, "logs/");
       const patientsRef = ref(db, "patients");
-      const pendingRef = ref(db, "pending");
+      const pendingRef = ref(db, "pending/patients");
       const patient = push(patientsRef);
       const pending = push(pendingRef);
       const newLog = push(logsRef);

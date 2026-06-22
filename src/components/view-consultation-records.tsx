@@ -24,6 +24,7 @@ import {
   PenIcon,
   ClipboardList,
   Pill,
+  TrendingUp,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -49,6 +50,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
 
 import { db } from "@/firebaseConfig";
 import { ref, onValue } from "firebase/database";
@@ -107,6 +118,7 @@ export type MedicalRecord = {
   hasClinician: boolean;
   diet: boolean;
   createdBy?: string;
+  createdAt?: number;
   sharedWith?: string[];
   prescription?: Prescription;
 };
@@ -126,9 +138,476 @@ export type Patient = {
   telephone: string;
   addedBy: string;
 };
+
 type PatientWithRecord = Patient & MedicalRecord;
 
-// ─── Stat Card (single stat) ──────────────────────────────────────────────────
+// ─── Vital config ─────────────────────────────────────────────────────────────
+
+type VitalKey =
+  | "symptoms"
+  | "bloodPressure"
+  | "heartRate"
+  | "respiratoryRate"
+  | "temperature"
+  | "oxygenSaturation"
+  | "weight"
+  | "height";
+
+const VITALS: { key: VitalKey; label: string; unit?: string; color: string }[] =
+  [
+    { key: "symptoms", label: "Symptoms", color: "#00c4b4" },
+    { key: "bloodPressure", label: "BP", unit: "mmHg", color: "#00c4b4" },
+    { key: "heartRate", label: "Heart Rate", unit: "bpm", color: "#00c4b4" },
+    {
+      key: "respiratoryRate",
+      label: "Resp. Rate",
+      unit: "br/min",
+      color: "#00c4b4",
+    },
+    { key: "temperature", label: "Temperature", unit: "°C", color: "#00c4b4" },
+    {
+      key: "oxygenSaturation",
+      label: "O₂ Sat",
+      unit: "%",
+      color: "#00c4b4",
+    },
+    { key: "weight", label: "Weight", unit: "kg", color: "#00c4b4" },
+    { key: "height", label: "Height", unit: "cm", color: "#00c4b4" },
+  ];
+
+// ─── Sparkline ────────────────────────────────────────────────────────────────
+
+const Sparkline = ({
+  records,
+  vitalKey,
+  color,
+  width = 52,
+  height = 24,
+  onClick,
+}: {
+  records: MedicalRecord[];
+  vitalKey: VitalKey;
+  color: string;
+  width?: number;
+  height?: number;
+  onClick?: () => void;
+}) => {
+  const values = React.useMemo(() => {
+    return [...records]
+      .filter((r) => r[vitalKey] !== undefined && r[vitalKey] !== "")
+      .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+      .map((r) => parseFloat((r[vitalKey] as string).replace(/[^\d.]/g, "")))
+      .filter((v) => !isNaN(v))
+      .slice(-10);
+  }, [records, vitalKey]);
+
+  if (values.length < 2) return null;
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const pad = 2;
+  const w = width - pad * 2;
+  const h = height - pad * 2;
+
+  const points = values
+    .map((v, i) => {
+      const x = pad + (i / (values.length - 1)) * w;
+      const y = pad + h - ((v - min) / range) * h;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  const last = values[values.length - 1];
+  const lastX = pad + w;
+  const lastY = pad + h - ((last - min) / range) * h;
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      className={
+        onClick
+          ? "cursor-pointer hover:opacity-70 transition-opacity flex-shrink-0"
+          : "flex-shrink-0"
+      }
+      onClick={onClick}
+      style={{ display: "inline-block", verticalAlign: "middle" }}
+    >
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        opacity={0.65}
+      />
+      <circle cx={lastX} cy={lastY} r={2.5} fill={color} opacity={0.9} />
+    </svg>
+  );
+};
+
+// ─── Vital Trend Dialog ───────────────────────────────────────────────────────
+
+const VitalTrendDialog = ({
+  open,
+  onOpenChange,
+  vitalKey,
+  label,
+
+  color,
+  records,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  vitalKey: VitalKey;
+  label: string;
+
+  color: string;
+  records: MedicalRecord[];
+}) => {
+  const chartData = React.useMemo(() => {
+    return [...records]
+      .filter((r) => r[vitalKey] !== undefined && r[vitalKey] !== "")
+      .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+      .map((r, i) => {
+        const raw = r[vitalKey] as string | undefined;
+        const numeric = raw ? parseFloat(raw.replace(/[^\d.]/g, "")) : null;
+        return {
+          name: r.createdAt
+            ? new Date(r.createdAt).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              })
+            : `Record ${i + 1}`,
+          value: numeric,
+          raw,
+          recordNumber: r.recordNumber ?? i + 1,
+        };
+      });
+  }, [records, vitalKey]);
+
+  const hasNumeric = chartData.some((d) => d.value !== null);
+  const values = chartData
+    .map((d) => d.value)
+    .filter((v) => v !== null) as number[];
+  const avg = values.length
+    ? values.reduce((a, b) => a + b, 0) / values.length
+    : null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl bg-white border-gray-200 text-gray-800">
+        <DialogHeader>
+          <DialogTitle className="text-gray-800 flex items-center gap-2">
+            <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" />
+            {label}
+          </DialogTitle>
+          <DialogDescription className="text-gray-400 text-xs"></DialogDescription>
+        </DialogHeader>
+
+        {chartData.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-40 text-gray-400 text-sm gap-2">
+            <TrendingUp className="h-8 w-8 opacity-30" />
+            <span>No {label.toLowerCase()} data recorded yet</span>
+          </div>
+        ) : !hasNumeric ? (
+          <div className="space-y-2 py-2">
+            <p className="text-xs text-gray-400 mb-3">
+              This vital is recorded as text — showing chronological values:
+            </p>
+            {chartData.map((d, i) => (
+              <div
+                key={i}
+                className="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3"
+              >
+                <span
+                  className="mt-1 w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: color }}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-700">{d.raw || "—"}</p>
+                </div>
+                <span className="text-xs text-gray-400 whitespace-nowrap">
+                  {d.name}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-3">
+              {avg !== null && (
+                <div className="flex flex-col items-center px-4 py-2 rounded-lg bg-gray-50 border border-gray-200">
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
+                    Average
+                  </span>
+                  <span className="text-lg font-bold" style={{ color }}>
+                    {avg.toFixed(1)}
+                  </span>
+                </div>
+              )}
+              {values.length > 0 && (
+                <>
+                  <div className="flex flex-col items-center px-4 py-2 rounded-lg bg-gray-50 border border-gray-200">
+                    <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
+                      Min
+                    </span>
+                    <span className="text-lg font-bold text-gray-800">
+                      {Math.min(...values).toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-center px-4 py-2 rounded-lg bg-gray-50 border border-gray-200">
+                    <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
+                      Max
+                    </span>
+                    <span className="text-lg font-bold text-gray-800">
+                      {Math.max(...values).toFixed(1)}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="rounded-lg bg-gray-50 border border-gray-200 p-4">
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart
+                  data={chartData}
+                  margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="#e5e7eb"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fill: "#9ca3af", fontSize: 10 }}
+                    axisLine={{ stroke: "#e5e7eb" }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: "#9ca3af", fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                    domain={["auto", "auto"]}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "8px",
+                      color: "#111827",
+                      fontSize: "12px",
+                      boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                    }}
+                    labelStyle={{ color: "#6b7280", marginBottom: 4 }}
+                  />
+                  {avg !== null && (
+                    <ReferenceLine
+                      y={avg}
+                      stroke={color}
+                      strokeDasharray="4 4"
+                      strokeOpacity={0.5}
+                      label={{
+                        value: "avg",
+                        fill: color,
+                        fontSize: 9,
+                        position: "insideTopRight",
+                      }}
+                    />
+                  )}
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke={color}
+                    strokeWidth={2}
+                    dot={{ r: 4, fill: color, strokeWidth: 0 }}
+                    activeDot={{
+                      r: 6,
+                      fill: color,
+                      stroke: "#ffffff",
+                      strokeWidth: 2,
+                    }}
+                    connectNulls={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-[#1a1a2e]">
+                    <th className="text-left px-3 py-2 text-gray-100 font-medium uppercase tracking-wider text-[10px]">
+                      Date
+                    </th>
+                    <th className="text-right px-3 py-2 text-gray-100 font-medium uppercase tracking-wider text-[10px]">
+                      Value
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chartData.map((d, i) => (
+                    <tr
+                      key={i}
+                      className={`border-b border-gray-100 ${
+                        i % 2 === 0 ? "bg-white" : "bg-gray-50/40"
+                      }`}
+                    >
+                      <td className="px-3 py-2 text-gray-500">{d.name}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-gray-800">
+                        {d.raw || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ─── Vital cell with inline sparkline ────────────────────────────────────────
+
+const VitalCell = ({
+  value,
+  vital,
+  allRecords,
+  patientName,
+  isLatest,
+}: {
+  value: string | undefined;
+  vital: (typeof VITALS)[number];
+  allRecords: MedicalRecord[];
+  patientName: string;
+  isLatest: boolean;
+}) => {
+  const [open, setOpen] = React.useState(false);
+
+  const numericCount = React.useMemo(() => {
+    return allRecords
+      .filter((r) => r[vital.key] !== undefined && r[vital.key] !== "")
+      .map((r) => parseFloat((r[vital.key] as string).replace(/[^\d.]/g, "")))
+      .filter((v) => !isNaN(v)).length;
+  }, [allRecords, vital.key]);
+
+  const canSparkline = isLatest && numericCount >= 2;
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-sm text-gray-700 tabular-nums">{value || "—"}</span>
+      {canSparkline && (
+        <Sparkline
+          records={allRecords}
+          vitalKey={vital.key}
+          color={vital.color}
+          onClick={() => setOpen(true)}
+        />
+      )}
+      {open && (
+        <VitalTrendDialog
+          open={open}
+          onOpenChange={setOpen}
+          vitalKey={vital.key}
+          label={vital.label}
+          color={vital.color}
+          records={allRecords}
+        />
+      )}
+    </div>
+  );
+};
+
+// ─── VitalsGrid (mobile) ──────────────────────────────────────────────────────
+
+const VitalsGrid = ({
+  record,
+  allRecords,
+  patientName,
+}: {
+  record: MedicalRecord;
+  allRecords: MedicalRecord[];
+  patientName: string;
+}) => {
+  const [activeVital, setActiveVital] = React.useState<{
+    key: VitalKey;
+    label: string;
+    unit?: string;
+    color: string;
+  } | null>(null);
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+        {VITALS.map(({ key, label, unit, color }) => {
+          const value = record[key] as string | undefined;
+          const hasData = allRecords.some(
+            (r) => r[key] !== undefined && r[key] !== "",
+          );
+          return (
+            <div key={key}>
+              <button
+                onClick={() =>
+                  hasData && setActiveVital({ key, label, unit, color })
+                }
+                className={`text-left group flex items-center gap-1 transition-colors ${
+                  hasData ? "cursor-pointer hover:opacity-80" : "cursor-default"
+                }`}
+                title={
+                  hasData ? `View ${label} trend across all records` : undefined
+                }
+              >
+                <span
+                  className="text-gray-400 group-hover:underline"
+                  style={hasData ? { color } : undefined}
+                >
+                  {label}
+                </span>
+                {hasData && (
+                  <TrendingUp
+                    className="w-2.5 h-2.5 opacity-50 group-hover:opacity-100 transition-opacity"
+                    style={{ color }}
+                  />
+                )}
+              </button>
+              <p className="text-gray-700 font-medium truncate">
+                {value || "—"}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {activeVital && (
+        <VitalTrendDialog
+          open={true}
+          onOpenChange={(v) => !v && setActiveVital(null)}
+          vitalKey={activeVital.key}
+          label={activeVital.label}
+          color={activeVital.color}
+          records={allRecords}
+        />
+      )}
+    </>
+  );
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const disableEdit = (record: MedicalRecord): boolean => {
+  if (!record.createdAt) return false;
+  const createdDate = new Date(record.createdAt);
+  const now = new Date();
+  const hoursDiff = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
+  return hoursDiff >= 24;
+};
 
 const StatCard = ({
   label,
@@ -153,8 +632,6 @@ const StatCard = ({
     </div>
   </div>
 );
-
-// ─── Shared Helpers ────────────────────────────────────────────────────────────
 
 const SeverityBadge = ({ severity }: { severity: string }) => {
   const s = severity?.toLowerCase() ?? "";
@@ -203,36 +680,33 @@ const RiskIndicators = ({ record }: { record: MedicalRecord }) => (
   </div>
 );
 
-// Consultation Record Actions
+// ─── Action components ────────────────────────────────────────────────────────
 
 const ConsultationRecordActions = ({ records }: { records: MedicalRecord }) => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
   const patient = location.state as Patient | null;
   const [openUser, setOpenUser] = React.useState(false);
-  const [openEdit, setOpenEdit] = React.useState(false);
   const [openPrescription, setOpenPrescription] = React.useState(false);
-  const [hasPrescription, sethasPrescription] = React.useState(false);
+  const [openEdit, setOpenEdit] = React.useState(false);
+  const [hasPrescription, setHasPrescription] = React.useState(false);
+  const isExpired = React.useMemo(() => disableEdit(records), [records]);
 
   React.useEffect(() => {
     if (!patient?.id || !records.recordId) return;
-
     const prescriptionRef = ref(
       db,
       `patients/${patient.id}/records/${records.recordId}/prescription`,
     );
-
     const unsub = onValue(prescriptionRef, (snapshot) => {
-      sethasPrescription(snapshot.exists());
+      setHasPrescription(snapshot.exists());
     });
-
     return () => unsub();
   }, [patient?.id, records.recordId]);
+
   const userIsDoctor =
     user?.type?.toLowerCase() === "doctor" ||
     user?.type?.toLowerCase() === "admin";
-
   if (!patient) return null;
 
   const patientWithRecord: PatientWithRecord = {
@@ -258,52 +732,91 @@ const ConsultationRecordActions = ({ records }: { records: MedicalRecord }) => {
         patient={patientWithRecord}
       />
 
-      {/* <button
-        onClick={() => setOpenEdit(true)}
-        title="Edit patient"
-        className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
-      >
-        <PenIcon className="w-3.5 h-3.5 text-[#00a896]" />
-      </button>
+      {!isExpired ? (
+        <button
+          onClick={() => setOpenEdit(true)}
+          title="Edit record"
+          className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
+        >
+          <PenIcon className="w-3.5 h-3.5 text-[#00a896]" />
+        </button>
+      ) : (
+        <div className="relative group">
+          <button
+            disabled
+            title="Cannot edit after 24 hours"
+            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-100 !bg-gray-50 cursor-not-allowed opacity-40"
+          >
+            <PenIcon className="w-3.5 h-3.5 text-gray-400" />
+          </button>
+          <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap pointer-events-none z-50">
+            24h edit limit passed
+          </span>
+        </div>
+      )}
       <EditRecordsSheet
         open={openEdit}
         onOpenChange={setOpenEdit}
         patient={patientWithRecord}
-      /> */}
-
-      {userIsDoctor && !hasPrescription && (
-        <div>
-          <button
-            onClick={() => setOpenPrescription(true)}
-            title="Add Prescription"
-            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
-          >
-            <PillIcon className="w-3.5 h-3.5 text-[#00a896]" />
-          </button>
-        </div>
-      )}
-
-      {userIsDoctor && hasPrescription && (
-        <div>
-          <button
-            onClick={() => setOpenPrescription(true)}
-            title="View Prescription"
-            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-green-100 hover:bg-green-50 transition-colors"
-          >
-            <PillIcon className="w-3.5 h-3.5 text-green-600" />
-          </button>
-        </div>
-      )}
-      <PrescriptionDrawer
-        open={openPrescription}
-        onOpenChange={setOpenPrescription}
-        patient={patientWithRecord}
       />
+
+      {userIsDoctor && (
+        <>
+          {!hasPrescription && !isExpired && (
+            <button
+              onClick={() => setOpenPrescription(true)}
+              title="Add Prescription"
+              className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
+            >
+              <PillIcon className="w-3.5 h-3.5 text-[#00a896]" />
+            </button>
+          )}
+          {hasPrescription && !isExpired && (
+            <button
+              onClick={() => setOpenPrescription(true)}
+              title="View / Edit Prescription"
+              className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-green-100 hover:bg-green-50 transition-colors"
+            >
+              <PillIcon className="w-3.5 h-3.5 text-green-600" />
+            </button>
+          )}
+          {isExpired && (
+            <div className="relative group">
+              <button
+                disabled
+                title={
+                  hasPrescription
+                    ? "Cannot view prescription after 24 hours"
+                    : "Cannot add prescription after 24 hours"
+                }
+                className={`inline-flex items-center justify-center w-7 h-7 rounded border transition-colors cursor-not-allowed ${
+                  hasPrescription
+                    ? "border-gray-200 !bg-green-50 opacity-60"
+                    : "border-gray-100 !bg-gray-50 opacity-40"
+                }`}
+              >
+                <PillIcon
+                  className={`w-3.5 h-3.5 ${hasPrescription ? "text-green-400" : "text-gray-400"}`}
+                />
+              </button>
+              <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap pointer-events-none z-50">
+                24h edit limit passed
+              </span>
+            </div>
+          )}
+          <PrescriptionDrawer
+            open={openPrescription}
+            onOpenChange={setOpenPrescription}
+            patient={patientWithRecord}
+            readOnly={isExpired}
+          />
+        </>
+      )}
     </div>
   );
 };
 
-//View Prescription
+// ─── View Prescription Dialog ─────────────────────────────────────────────────
 
 const ViewPrescriptionDialog = ({
   open,
@@ -336,7 +849,6 @@ const ViewPrescriptionDialog = ({
           </p>
         ) : (
           <div className="space-y-5">
-            {/* Diagnosis */}
             <div>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Diagnosis
@@ -367,7 +879,6 @@ const ViewPrescriptionDialog = ({
               )}
             </div>
 
-            {/* Drugs */}
             <div>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Drugs
@@ -405,7 +916,6 @@ const ViewPrescriptionDialog = ({
               )}
             </div>
 
-            {/* Examination & Recommendation */}
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
@@ -425,7 +935,6 @@ const ViewPrescriptionDialog = ({
               </div>
             </div>
 
-            {/* Meta */}
             <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-400 flex-wrap gap-1">
               <span>
                 Added by {prescription.addedBy || "—"}
@@ -440,7 +949,7 @@ const ViewPrescriptionDialog = ({
   );
 };
 
-//  Prescription Record Actions
+// ─── Prescription Record Actions ──────────────────────────────────────────────
 
 const PrescriptionRecordActions = ({ record }: { record: MedicalRecord }) => {
   const { user } = useAuth();
@@ -448,6 +957,7 @@ const PrescriptionRecordActions = ({ record }: { record: MedicalRecord }) => {
   const patient = location.state as Patient | null;
   const [openView, setOpenView] = React.useState(false);
   const [openEdit, setOpenEdit] = React.useState(false);
+  const disable = React.useMemo(() => disableEdit(record), [record]);
 
   const userIsDoctor =
     user?.type?.toLowerCase() === "doctor" ||
@@ -479,7 +989,7 @@ const PrescriptionRecordActions = ({ record }: { record: MedicalRecord }) => {
         patient={patient}
       />
 
-      {userIsDoctor && (
+      {userIsDoctor && !disable && (
         <button
           onClick={() => setOpenEdit(true)}
           title="Edit prescription"
@@ -488,18 +998,63 @@ const PrescriptionRecordActions = ({ record }: { record: MedicalRecord }) => {
           <PenIcon className="w-3.5 h-3.5 text-[#00a896]" />
         </button>
       )}
+
+      {userIsDoctor && disable && (
+        <div className="relative group">
+          <button
+            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-gray-100 cursor-default opacity-50"
+            disabled
+            title="Expired - Cannot edit after 24 hours"
+          >
+            <PenIcon className="w-3.5 h-3.5 text-gray-400" />
+          </button>
+          <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap pointer-events-none">
+            Expired (24h limit)
+          </span>
+        </div>
+      )}
+
       <PrescriptionDrawer
         open={openEdit}
         onOpenChange={setOpenEdit}
         patient={patientWithRecord}
+        readOnly={disable}
       />
     </div>
   );
 };
 
-// Consultation Record Columns
+// ─── Column definitions ───────────────────────────────────────────────────────
 
-const columns: ColumnDef<MedicalRecord>[] = [
+// Factory: builds a vital column; sparkline only on the latest (index 0) row
+function makeVitalColumn(
+  vital: (typeof VITALS)[number],
+  getPatientName: () => string,
+): ColumnDef<MedicalRecord> {
+  return {
+    accessorKey: vital.key,
+    header: vital.label,
+    cell: ({ row, table }) => {
+      const allRecords = table.options.data as MedicalRecord[];
+      const value = row.original[vital.key] as string | undefined;
+      // records are sorted newest-first; index 0 is the most recent record
+      const isLatest = row.index === 0;
+      return (
+        <VitalCell
+          value={value}
+          vital={vital}
+          allRecords={allRecords}
+          patientName={getPatientName()}
+          isLatest={isLatest}
+        />
+      );
+    },
+  };
+}
+
+const buildColumns = (
+  getPatientName: () => string,
+): ColumnDef<MedicalRecord>[] => [
   {
     id: "actions",
     header: "",
@@ -546,7 +1101,7 @@ const columns: ColumnDef<MedicalRecord>[] = [
       );
     },
   },
-
+  // Symptoms — text only, no sparkline
   {
     accessorKey: "symptoms",
     header: "Symptoms",
@@ -556,60 +1111,10 @@ const columns: ColumnDef<MedicalRecord>[] = [
       </span>
     ),
   },
-  {
-    accessorKey: "bloodPressure",
-    header: "BP",
-    cell: ({ row }) => (
-      <span className="text-sm text-gray-700">
-        {row.original.bloodPressure || "—"}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "heartRate",
-    header: "Heart Rate",
-    cell: ({ row }) => (
-      <span className="text-sm text-gray-700">
-        {row.original.heartRate || "—"}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "temperature",
-    header: "Temp",
-    cell: ({ row }) => (
-      <span className="text-sm text-gray-700">
-        {row.original.temperature || "—"}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "oxygenSaturation",
-    header: "O₂ Sat",
-    cell: ({ row }) => (
-      <span className="text-sm text-gray-700">
-        {row.original.oxygenSaturation || "—"}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "weight",
-    header: "Weight",
-    cell: ({ row }) => (
-      <span className="text-sm text-gray-700">
-        {row.original.weight || "—"}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "height",
-    header: "Height",
-    cell: ({ row }) => (
-      <span className="text-sm text-gray-700">
-        {row.original.height || "—"}
-      </span>
-    ),
-  },
+  // Numeric vitals — each gets an inline sparkline
+  ...VITALS.filter((v) => v.key !== "symptoms").map((vital) =>
+    makeVitalColumn(vital, getPatientName),
+  ),
   {
     id: "risks",
     header: "Risk Flags",
@@ -626,8 +1131,6 @@ const columns: ColumnDef<MedicalRecord>[] = [
     ),
   },
 ];
-
-// Prescription Columns──
 
 const prescriptionColumns: ColumnDef<MedicalRecord>[] = [
   {
@@ -760,11 +1263,14 @@ const prescriptionColumns: ColumnDef<MedicalRecord>[] = [
   },
 ];
 
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export function ConsultationRecords() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const location = useLocation();
+  const [openUser, setOpenUser] = React.useState(false);
 
   const patient = location.state as Patient | null;
 
@@ -820,6 +1326,7 @@ export function ConsultationRecords() {
                   patientDiagnosis: Array.isArray(diagnosisData)
                     ? diagnosisData
                     : [],
+                  createdAt: value.createdAt || Date.now(),
                 };
               })
               .filter((record) => {
@@ -829,6 +1336,7 @@ export function ConsultationRecords() {
                   record.createdBy === user.uid || sharedWith.includes(user.uid)
                 );
               })
+              .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
           : [];
         setRecords(fetched);
         setLoading(false);
@@ -840,6 +1348,14 @@ export function ConsultationRecords() {
       innerUnsub?.();
     };
   }, [user, patient?.id]);
+
+  const patientName = patient ? `${patient.firstName} ${patient.lastName}` : "";
+
+  // Build columns with stable patient name reference
+  const columns = React.useMemo(
+    () => buildColumns(() => patientName),
+    [patientName],
+  );
 
   const table = useReactTable({
     data: records,
@@ -856,7 +1372,6 @@ export function ConsultationRecords() {
     initialState: { pagination: { pageSize: isMobile ? 8 : 10 } },
   });
 
-  // Records that actually have a prescription attached
   const prescriptionRecords = React.useMemo(
     () => records.filter((r) => !!r.prescription),
     [records],
@@ -882,7 +1397,6 @@ export function ConsultationRecords() {
     initialState: { pagination: { pageSize: isMobile ? 8 : 10 } },
   });
 
-  // ─── Guards ──────────────────────────────────────────────────────────────────
   if (!patient) {
     return (
       <div className="flex flex-col items-center justify-center p-10 text-gray-500 text-sm gap-3">
@@ -1012,10 +1526,12 @@ export function ConsultationRecords() {
           onChange={(e) => {
             const value = e.target.value;
             setPrescSearchValue(value);
-            const diagCol = prescriptionTable.getColumn("diagnosis");
-            const drugCol = prescriptionTable.getColumn("drugs");
-            diagCol?.setFilterValue(value || undefined);
-            drugCol?.setFilterValue(value || undefined);
+            prescriptionTable
+              .getColumn("diagnosis")
+              ?.setFilterValue(value || undefined);
+            prescriptionTable
+              .getColumn("drugs")
+              ?.setFilterValue(value || undefined);
           }}
           className="w-full pl-8 pr-3 py-2 text-sm !bg-white border border-gray-200 rounded-lg shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00a896]/40 focus:border-[#00a896] transition"
         />
@@ -1106,23 +1622,51 @@ export function ConsultationRecords() {
     </div>
   );
 
+  const EmptyConsultation = (
+    <div className="rounded-xl border border-gray-200 bg-white p-10 flex flex-col items-center justify-center text-center gap-2">
+      <div className="w-10 h-10 rounded-lg bg-[#00a896]/10 flex items-center justify-center">
+        <ClipboardList className="w-5 h-5 text-[#00a896]" />
+      </div>
+      <p className="text-sm font-medium text-gray-700">
+        No consultation records yet
+      </p>
+      <p className="text-xs text-gray-400 max-w-xs">
+        Consultation Records created for your patient will appear here.
+      </p>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-5 bg-gray-50 min-h-screen">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight">
-            {patient.firstName} {patient.lastName}
+            {patientName}
           </h1>
           <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
             Consultation Records
           </p>
         </div>
-        <button
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-semibold text-white !bg-[#00a896] rounded-lg shadow hover:opacity-90 transition"
-        >
-          ← {isMobile ? "Back" : "Back to Records"}
-        </button>
+
+        <div className="flex flex-col items-end gap-2">
+          <button
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-semibold text-white !bg-[#00a896] rounded-lg shadow hover:opacity-90 transition"
+          >
+            ← {isMobile ? "Back" : "Back to Records"}
+          </button>
+          <button
+            onClick={() => setOpenUser(true)}
+            className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-semibold text-white !bg-[#00a896] rounded-lg shadow hover:opacity-90 transition"
+          >
+            + Add New Record
+          </button>
+          <AddRecordsDrawer
+            open={openUser}
+            onOpenChange={setOpenUser}
+            patient={patient}
+          />
+        </div>
       </div>
 
       <Tabs defaultValue="records" className="w-full">
@@ -1140,14 +1684,10 @@ export function ConsultationRecords() {
           >
             <Pill className="w-3.5 h-3.5" />
             Prescriptions
-            {/* {prescriptionRecords.length > 0 && (
-              <span className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-[#00a896]/10 text-[#00a896] text-[10px] font-semibold">
-                {prescriptionRecords.length}
-              </span>
-            )} */}
           </TabsTrigger>
         </TabsList>
 
+        {/* ── Consultation Records Tab ── */}
         <TabsContent value="records" className="flex flex-col gap-4 mt-4">
           <StatCard
             label="Total Records: "
@@ -1161,20 +1701,7 @@ export function ConsultationRecords() {
           {isMobile ? (
             <>
               {filteredRows.length === 0 ? (
-                <div className="rounded-xl border border-gray-200 bg-white p-6">
-                  <div className="rounded-xl border border-gray-200 bg-white p-10 flex flex-col items-center justify-center text-center gap-2">
-                    <div className="w-10 h-10 rounded-lg bg-[#00a896]/10 flex items-center justify-center">
-                      <ClipboardList className="w-5 h-5 text-[#00a896]" />
-                    </div>
-                    <p className="text-sm font-medium text-gray-700">
-                      No consultation records yet
-                    </p>
-                    <p className="text-xs text-gray-400 max-w-xs">
-                      Consultation Records created for your patient will appear
-                      here.
-                    </p>
-                  </div>
-                </div>
+                EmptyConsultation
               ) : (
                 <div className="flex flex-col gap-3">
                   {table.getRowModel().rows.map((row) => {
@@ -1220,25 +1747,19 @@ export function ConsultationRecords() {
                           <RiskIndicators record={r} />
                         </div>
 
-                        {/* Vitals */}
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                          {[
-                            { label: "Symptoms", value: r.symptoms },
-                            { label: "BP", value: r.bloodPressure },
-                            { label: "Heart Rate", value: r.heartRate },
-                            { label: "Temperature", value: r.temperature },
-                            { label: "O₂ Sat", value: r.oxygenSaturation },
-                            { label: "Weight", value: r.weight },
-                            { label: "Height", value: r.height },
-                            { label: "Added By", value: r.addedBy },
-                          ].map(({ label, value }) => (
-                            <div key={label}>
-                              <span className="text-gray-400">{label}</span>
-                              <p className="text-gray-700 font-medium truncate">
-                                {value || "—"}
-                              </p>
-                            </div>
-                          ))}
+                        {/* Vitals grid */}
+                        <div>
+                          <p className="text-[10px] uppercase text-gray-400 font-semibold mb-1.5 flex items-center gap-1">
+                            Vitals
+                            <span className="text-gray-300 font-normal normal-case tracking-normal">
+                              · tap label to see trend
+                            </span>
+                          </p>
+                          <VitalsGrid
+                            record={r}
+                            allRecords={records}
+                            patientName={patientName}
+                          />
                         </div>
 
                         {/* Actions */}
@@ -1253,7 +1774,7 @@ export function ConsultationRecords() {
               {Pagination}
             </>
           ) : (
-            /* ─── Desktop ──────────────────────────────────────────────────── */
+            /* ── Desktop ── */
             <>
               <div className="rounded-lg border border-gray-200 overflow-hidden shadow-sm bg-white">
                 <div className="overflow-x-auto">
@@ -1305,20 +1826,7 @@ export function ConsultationRecords() {
                             colSpan={columns.length}
                             className="h-32 text-center"
                           >
-                            <div className="rounded-xl border border-gray-200 bg-white p-6">
-                              <div className="rounded-xl border border-gray-200 bg-white p-10 flex flex-col items-center justify-center text-center gap-2">
-                                <div className="w-10 h-10 rounded-lg bg-[#00a896]/10 flex items-center justify-center">
-                                  <ClipboardList className="w-5 h-5 text-[#00a896]" />
-                                </div>
-                                <p className="text-sm font-medium text-gray-700">
-                                  No consultation records yet
-                                </p>
-                                <p className="text-xs text-gray-400 max-w-xs">
-                                  Consultation Records created for your patient
-                                  will appear here.
-                                </p>
-                              </div>
-                            </div>
+                            {EmptyConsultation}
                           </TableCell>
                         </TableRow>
                       )}
@@ -1331,6 +1839,7 @@ export function ConsultationRecords() {
           )}
         </TabsContent>
 
+        {/* ── Prescriptions Tab ── */}
         <TabsContent value="prescriptions" className="flex flex-col gap-4 mt-4">
           <StatCard
             label="Total Prescriptions: "

@@ -23,15 +23,6 @@ import { useAuth } from "@/auth/authprovider";
 
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -40,19 +31,17 @@ import { Calendar } from "./ui/calendar";
 
 import {
   Activity,
-  List,
-  Zap,
-  ScrollText,
-  BarChart3,
   Download,
-  Lightbulb,
   TrendingUp,
   X,
   ChevronDownIcon,
   Users,
+  Pill,
+  Stethoscope,
+  ClipboardList,
 } from "lucide-react";
 
-// ─── Color palette ────────────────────────────────────────────────────────────
+// ─── Color palette ─────────────────────────────────────────────────────────────
 const CHART_COLORS = [
   "#00a896",
   "#378add",
@@ -64,7 +53,7 @@ const CHART_COLORS = [
   "#185fa5",
 ];
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────────
 interface AnalyticsData {
   label: string;
   count: number;
@@ -86,7 +75,7 @@ interface AnalyticsState {
   trendByDiagnosis: Record<string, AnalyticsData[]>;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ───────────────────────────────────────────────────────────────────
 const mapToArray = (map: Record<string, number>): AnalyticsData[] =>
   Object.entries(map)
     .map(([label, count]) => ({ label, count }))
@@ -173,188 +162,71 @@ const exportToCSV = (data: AnalyticsData[], filename: string) => {
   URL.revokeObjectURL(url);
 };
 
-// ─── Auto-insight generator ───────────────────────────────────────────────────
-interface Insight {
-  color: string;
-  text: React.ReactNode;
-}
+// ─── Shared chart components ───────────────────────────────────────────────────
 
-const generateInsights = (state: AnalyticsState): Insight[] => {
-  const insights: Insight[] = [];
-  if (state.diagnoses[0]) {
-    const top = state.diagnoses[0];
-    const total = state.diagnoses.reduce((s, d) => s + d.count, 0);
-    const pct = ((top.count / total) * 100).toFixed(0);
-    insights.push({
-      color: CHART_COLORS[0],
-      text: (
-        <>
-          <strong>{top.label}</strong> is the most common diagnosis, accounting
-          for {pct}% of all recorded cases.
-        </>
-      ),
-    });
-  }
-  const ageGroups: Array<{ key: keyof AnalyticsState; label: string }> = [
-    { key: "infant", label: "Infants (0–1)" },
-    { key: "teen", label: "Teens (2–20)" },
-    { key: "adult", label: "Adults (21–44)" },
-    { key: "middleage", label: "Middle-aged (45–64)" },
-    { key: "senior", label: "Seniors (65+)" },
-  ];
-  const groupTotals = ageGroups.map(({ key, label }) => ({
-    label,
-    total: (state[key] as AnalyticsData[]).reduce((s, d) => s + d.count, 0),
-    top: (state[key] as AnalyticsData[])[0]?.label ?? "N/A",
-  }));
-  const dominant = [...groupTotals].sort((a, b) => b.total - a.total)[0];
-  if (dominant && dominant.total > 0) {
-    insights.push({
-      color: CHART_COLORS[1],
-      text: (
-        <>
-          <strong>{dominant.label}</strong> account for the most visits (
-          {dominant.total} cases). Top diagnosis:{" "}
-          <strong>{dominant.top}</strong>.
-        </>
-      ),
-    });
-  }
-  if (state.male[0] && state.female[0]) {
-    insights.push({
-      color: CHART_COLORS[4],
-      text: (
-        <>
-          Top diagnosis for <strong>males</strong>: {state.male[0].label} (
-          {state.male[0].count} cases). For <strong>females</strong>:{" "}
-          {state.female[0].label} ({state.female[0].count} cases).
-        </>
-      ),
-    });
-  }
-  if (state.drugs[0]) {
-    const totalDrugs = state.drugs.reduce((s, d) => s + d.count, 0);
-    const pct = ((state.drugs[0].count / totalDrugs) * 100).toFixed(0);
-    insights.push({
-      color: CHART_COLORS[2],
-      text: (
-        <>
-          <strong>{state.drugs[0].label}</strong> is the most prescribed drug,
-          appearing in {pct}% of prescriptions.
-        </>
-      ),
-    });
-  }
-  return insights;
-};
-
-// ─── Shared sub-components ────────────────────────────────────────────────────
-
-function MetricCard({
-  title,
-  value,
-  icon: Icon,
-}: {
-  title: string;
-  value: number;
-  icon: React.ElementType;
-}) {
-  return (
-    <Card className="bg-slate-900/50 border-slate-800">
-      <CardContent className="p-4 flex items-center justify-between">
-        <div>
-          <p className="text-xs text-slate-400 font-mono">{title}</p>
-          <p className="text-2xl font-bold text-slate-100">
-            {value.toLocaleString()}
-          </p>
-        </div>
-        <div className="p-2 rounded-lg bg-emerald-500/10">
-          <Icon className="h-5 w-5 text-emerald-400" />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function InsightsPanel({ insights }: { insights: Insight[] }) {
-  if (!insights.length) return null;
-  return (
-    <Card className="bg-slate-900/20 border-slate-800">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-mono text-slate-300 flex items-center gap-2">
-          <Lightbulb className="h-4 w-4 text-yellow-400" />
-          AUTO INSIGHTS
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0 space-y-3">
-        {insights.map((ins, i) => (
-          <div key={i} className="flex gap-3 text-sm text-slate-300">
-            <span
-              className="mt-1.5 h-2 w-2 rounded-full flex-shrink-0"
-              style={{ backgroundColor: ins.color }}
-            />
-            <span>{ins.text}</span>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-// Top-5 bar chart
 function Top5BarChart({ data }: { data: AnalyticsData[] }) {
   const top5 = data.slice(0, 5);
+  const othersCount = data.slice(5).reduce((s, d) => s + d.count, 0);
+  const chartData =
+    othersCount > 0 ? [...top5, { label: "Others", count: othersCount }] : top5;
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart
-        data={top5}
+        data={chartData}
         barCategoryGap="25%"
         margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
       >
         <CartesianGrid
           strokeDasharray="3 3"
-          stroke="#334155"
+          stroke="#f0f0f0"
           vertical={false}
         />
         <XAxis
           dataKey="label"
-          tick={{ fill: "#94a3b8", fontSize: 10, fontFamily: "monospace" }}
-          axisLine={{ stroke: "#334155" }}
+          tick={{ fill: "#000000", fontSize: 12, fontWeight: 600 }}
+          axisLine={{ stroke: "#e5e7eb" }}
           tickLine={false}
           interval={0}
-          // Truncate long labels on the axis
           tickFormatter={(v: string) =>
             v.length > 12 ? v.slice(0, 11) + "…" : v
           }
         />
         <YAxis
-          tick={{ fill: "#94a3b8", fontSize: 10, fontFamily: "monospace" }}
+          tick={{ fill: "#000000", fontSize: 12, fontWeight: 600 }}
           axisLine={false}
           tickLine={false}
           allowDecimals={false}
         />
         <Tooltip
           contentStyle={{
-            backgroundColor: "#1e293b",
-            border: "1px solid #334155",
+            backgroundColor: "#ffffff",
+            border: "1px solid #e5e7eb",
             borderRadius: "8px",
-            color: "#f8fafc",
-            fontSize: "12px",
-            fontFamily: "monospace",
+            color: "#000000",
+            fontSize: "13px",
+            fontWeight: 600,
+            boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
           }}
-          labelStyle={{ color: "#94a3b8", marginBottom: 4 }}
-          cursor={{ fill: "rgba(255,255,255,0.04)" }}
+          labelStyle={{ color: "#000000", marginBottom: 4, fontWeight: 700 }}
+          cursor={{ fill: "rgba(0,0,0,0.03)" }}
         />
         <Bar dataKey="count" radius={[4, 4, 0, 0]}>
           <LabelList
             dataKey="count"
             position="top"
-            fill="#94a3b8"
-            fontSize={10}
-            fontFamily="monospace"
+            fill="#000000"
+            fontSize={12}
+            fontWeight={700}
           />
-          {top5.map((_, i) => (
-            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+          {chartData.map((entry, i) => (
+            <Cell
+              key={i}
+              fill={
+                entry.label === "Others"
+                  ? "#9ca3af"
+                  : CHART_COLORS[i % CHART_COLORS.length]
+              }
+            />
           ))}
         </Bar>
       </BarChart>
@@ -362,16 +234,18 @@ function Top5BarChart({ data }: { data: AnalyticsData[] }) {
   );
 }
 
-// Top-5 pie / donut chart
 function Top5PieChart({ data }: { data: AnalyticsData[] }) {
   const top5 = data.slice(0, 5);
-  const total = top5.reduce((s, d) => s + d.count, 0);
+  const othersCount = data.slice(5).reduce((s, d) => s + d.count, 0);
+  const chartData =
+    othersCount > 0 ? [...top5, { label: "Others", count: othersCount }] : top5;
+  const total = chartData.reduce((s, d) => s + d.count, 0);
   return (
     <div className="flex flex-col gap-3">
       <ResponsiveContainer width="100%" height={180}>
         <PieChart>
           <Pie
-            data={top5}
+            data={chartData}
             dataKey="count"
             nameKey="label"
             cx="50%"
@@ -380,46 +254,58 @@ function Top5PieChart({ data }: { data: AnalyticsData[] }) {
             outerRadius={80}
             paddingAngle={2}
           >
-            {top5.map((_, i) => (
+            {chartData.map((entry, i) => (
               <Cell
                 key={i}
-                fill={CHART_COLORS[i % CHART_COLORS.length]}
-                stroke="#0f172a"
+                fill={
+                  entry.label === "Others"
+                    ? "#9ca3af"
+                    : CHART_COLORS[i % CHART_COLORS.length]
+                }
+                stroke="#ffffff"
                 strokeWidth={2}
               />
             ))}
           </Pie>
           <Tooltip
             contentStyle={{
-              backgroundColor: "#1e293b",
-              border: "1px solid #334155",
+              backgroundColor: "#ffffff",
+              border: "1px solid #e5e7eb",
               borderRadius: "8px",
-              color: "#f8fafc",
-              fontSize: "12px",
-              fontFamily: "monospace",
+              color: "#000000",
+              fontSize: "13px",
+              fontWeight: 600,
+              boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
             }}
           />
         </PieChart>
       </ResponsiveContainer>
-      {/* Legend */}
       <div className="space-y-1.5">
-        {top5.map((d, i) => (
+        {chartData.map((d, i) => (
           <div
             key={i}
-            className="flex items-center justify-between gap-2 text-xs font-mono"
+            className="flex items-center justify-between gap-2 text-xs"
           >
             <div className="flex items-center gap-2 min-w-0">
               <span
                 className="h-2 w-2 rounded-full flex-shrink-0"
                 style={{
-                  backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+                  backgroundColor:
+                    d.label === "Others"
+                      ? "#9ca3af"
+                      : CHART_COLORS[i % CHART_COLORS.length],
                 }}
               />
-              <span className="text-slate-300 truncate">{d.label}</span>
+              <span className="text-black font-semibold truncate">
+                {d.label}
+              </span>
             </div>
-            <span className="text-slate-500 flex-shrink-0">
-              {((d.count / total) * 100).toFixed(1)}%
-            </span>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <span className="text-black font-bold">{d.count}</span>
+              <span className="text-gray-500 font-semibold w-12 text-right">
+                {((d.count / total) * 100).toFixed(1)}%
+              </span>
+            </div>
           </div>
         ))}
       </div>
@@ -427,7 +313,6 @@ function Top5PieChart({ data }: { data: AnalyticsData[] }) {
   );
 }
 
-// Full sortable bar list with show-more
 function BarList({
   data,
   onItemClick,
@@ -451,35 +336,31 @@ function BarList({
     <div className="space-y-3">
       <div className="flex items-start justify-between">
         <div>
-          {title && (
-            <h3 className="text-sm font-mono font-semibold text-slate-200">
-              {title}
-            </h3>
-          )}
+          {title && <h3 className="text-base font-bold text-black">{title}</h3>}
           {description && (
-            <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+            <p className="text-sm text-gray-500 font-medium mt-0.5">
+              {description}
+            </p>
           )}
         </div>
         {showExport && exportFilename && (
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
             onClick={() => exportToCSV(data, exportFilename)}
-            className="text-slate-400 hover:text-emerald-400 h-7 px-2 text-xs gap-1"
+            className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#00a896] !bg-[#00c4b4] text-white transition-colors px-2 py-1 rounded font-semibold"
           >
             <Download className="h-3 w-3" />
             CSV
-          </Button>
+          </button>
         )}
       </div>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {display.map((item, i) => (
           <div
             key={i}
             onClick={() => onItemClick?.(item.label)}
-            className={`flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/30 px-3 py-2 transition-all ${
+            className={`flex items-center gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2 transition-all ${
               onItemClick
-                ? "cursor-pointer hover:bg-slate-800/60 hover:border-emerald-700/50 group"
+                ? "cursor-pointer hover:bg-gray-50 hover:border-gray-300 group"
                 : ""
             }`}
           >
@@ -488,56 +369,51 @@ function BarList({
               style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
             />
             <span
-              className={`text-sm font-mono flex-1 truncate ${onItemClick ? "text-slate-300 group-hover:text-emerald-400" : "text-slate-300"}`}
+              className={`text-sm font-bold flex-1 truncate ${onItemClick ? "text-black group-hover:text-[#00a896]" : "text-black"}`}
             >
               {item.label}
             </span>
-            <div className="hidden md:block w-28">
-              <Progress
-                value={(item.count / total) * 100}
-                className="h-1.5 bg-slate-800"
-              />
-            </div>
-            <span className="text-xs font-mono text-slate-500 w-14 text-right">
-              {item.count} cases
+            <span className="text-sm font-bold text-black w-14 text-right">
+              {item.count}
             </span>
-            <span className="text-xs font-mono text-slate-600 w-10 text-right">
+            <span className="text-sm font-semibold text-gray-500 w-10 text-right">
               {((item.count / total) * 100).toFixed(1)}%
             </span>
           </div>
         ))}
       </div>
       {data.length > 8 && (
-        <Button
-          variant="ghost"
-          size="sm"
+        <button
           onClick={() => setShowAll(!showAll)}
-          className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 text-xs h-7 px-2 w-full"
+          className="w-full text-sm font-bold !bg-[#00a896] text-white hover:opacity-80 py-1.5 flex items-center justify-center gap-1 transition-opacity"
         >
           {showAll ? "Show less" : `Show all ${data.length} records`}
           <ChevronDownIcon
-            className={`ml-1 h-3 w-3 transition-transform ${showAll ? "rotate-180" : ""}`}
+            className={`h-3 w-3 transition-transform ${showAll ? "rotate-180" : ""}`}
           />
-        </Button>
+        </button>
       )}
     </div>
   );
 }
 
-// Comparison trend chart (multi-series area)
-function ComparisonTrendChart({
+function TrendChart({
   seriesMap,
   selected,
+  onToggle,
+  onClear,
 }: {
   seriesMap: Record<string, AnalyticsData[]>;
   selected: string[];
+  onToggle?: (label: string) => void;
+  onClear?: () => void;
 }) {
   if (!selected.length) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-sm font-mono gap-2">
-        <TrendingUp className="h-8 w-8 opacity-30" />
-        <span>
-          Click any diagnosis in the list above to view its monthly trend
+      <div className="flex flex-col items-center justify-center h-32 text-gray-500 text-sm gap-2">
+        <TrendingUp className="h-6 w-6 opacity-30" />
+        <span className="text-sm font-semibold">
+          Click any row above to view its monthly trend
         </span>
       </div>
     );
@@ -560,21 +436,33 @@ function ComparisonTrendChart({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-3">
-        {selected.map((name, i) => (
-          <span
-            key={name}
-            className="flex items-center gap-1.5 text-xs font-mono text-slate-400"
-          >
+      <div className="flex items-center justify-between">
+        <div className="flex flex-wrap gap-2">
+          {selected.map((name, i) => (
             <span
-              className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
-            />
-            {name}
-          </span>
-        ))}
+              key={name}
+              onClick={() => onToggle?.(name)}
+              className="flex items-center gap-1.5 text-sm font-bold px-2 py-1 rounded-full cursor-pointer border transition-colors"
+              style={{
+                backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + "15",
+                color: CHART_COLORS[i % CHART_COLORS.length],
+                borderColor: CHART_COLORS[i % CHART_COLORS.length] + "40",
+              }}
+            >
+              {name} <X className="h-3 w-3 opacity-60" />
+            </span>
+          ))}
+        </div>
+        {selected.length > 0 && (
+          <button
+            onClick={onClear}
+            className="text-sm font-bold text-gray-500 hover:text-red-400 transition-colors px-2 py-1 flex items-center gap-1"
+          >
+            <X className="h-3 w-3" /> Clear
+          </button>
+        )}
       </div>
-      <ResponsiveContainer width="100%" height={280}>
+      <ResponsiveContainer width="100%" height={220}>
         <AreaChart
           data={merged}
           margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
@@ -592,7 +480,7 @@ function ComparisonTrendChart({
                 <stop
                   offset="5%"
                   stopColor={CHART_COLORS[i % CHART_COLORS.length]}
-                  stopOpacity={0.25}
+                  stopOpacity={0.15}
                 />
                 <stop
                   offset="95%"
@@ -602,29 +490,34 @@ function ComparisonTrendChart({
               </linearGradient>
             ))}
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="#f0f0f0"
+            vertical={false}
+          />
           <XAxis
             dataKey="month"
-            tick={{ fill: "#94a3b8", fontSize: 11, fontFamily: "monospace" }}
-            axisLine={{ stroke: "#334155" }}
+            tick={{ fill: "#000000", fontSize: 12, fontWeight: 600 }}
+            axisLine={{ stroke: "#e5e7eb" }}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: "#94a3b8", fontSize: 11, fontFamily: "monospace" }}
-            axisLine={{ stroke: "#334155" }}
+            tick={{ fill: "#000000", fontSize: 12, fontWeight: 600 }}
+            axisLine={false}
             tickLine={false}
             allowDecimals={false}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "#1e293b",
-              border: "1px solid #334155",
+              backgroundColor: "#ffffff",
+              border: "1px solid #e5e7eb",
               borderRadius: "8px",
-              color: "#f8fafc",
-              fontSize: "12px",
-              fontFamily: "monospace",
+              color: "#000000",
+              fontSize: "13px",
+              fontWeight: 600,
+              boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
             }}
-            labelStyle={{ color: "#94a3b8", marginBottom: 4 }}
+            labelStyle={{ color: "#000000", marginBottom: 4, fontWeight: 700 }}
           />
           {selected.map((name, i) => (
             <Area
@@ -648,153 +541,96 @@ function ComparisonTrendChart({
   );
 }
 
-// ─── Reusable section layout: charts row + full list + optional trend ─────────
-// This is the shared layout used by every tab.
-function AnalyticsSection({
-  data,
+// ─── Section wrapper ───────────────────────────────────────────────────────────
+function SectionCard({
   title,
-  description,
-  listTitle,
-  listDescription,
-  exportFilename,
-  trendSeriesMap,
-  selectedTrends,
-  onTrendToggle,
-  onTrendClear,
-  showTrendSection = false,
+  icon: Icon,
+  iconColor,
+  children,
 }: {
-  data: AnalyticsData[];
   title: string;
-  description?: string;
-  listTitle: string;
-  listDescription?: string;
-  exportFilename: string;
-  trendSeriesMap?: Record<string, AnalyticsData[]>;
-  selectedTrends?: string[];
-  onTrendToggle?: (label: string) => void;
-  onTrendClear?: () => void;
-  showTrendSection?: boolean;
+  icon: React.ElementType;
+  iconColor: string;
+  children: React.ReactNode;
 }) {
-  if (!data.length) {
-    return (
-      <div className="flex flex-col items-center justify-center h-40 text-slate-500 text-sm font-mono gap-2">
-        <BarChart3 className="h-8 w-8 opacity-30" />
-        <span>No data available for the selected period</span>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      {/* ── Row 1: Top-5 charts side by side ─────────────────────────────── */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="text-sm font-mono font-semibold text-slate-200">
-              {title}
-            </h3>
-            {description && (
-              <p className="text-xs text-slate-500 mt-0.5">{description}</p>
-            )}
-          </div>
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-gray-100">
+        <div
+          className="p-1.5 rounded-lg"
+          style={{ backgroundColor: iconColor + "15" }}
+        >
+          <Icon className="h-4 w-4" style={{ color: iconColor }} />
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card className="bg-slate-900/30 border-slate-800">
-            <CardHeader className="pb-1 pt-4 px-4">
-              <CardTitle className="text-xs font-mono text-slate-400">
-                TOP 5 — BAR
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-2 pb-3">
-              <Top5BarChart data={data} />
-            </CardContent>
-          </Card>
-          <Card className="bg-slate-900/30 border-slate-800">
-            <CardHeader className="pb-1 pt-4 px-4">
-              <CardTitle className="text-xs font-mono text-slate-400">
-                TOP 5 — DISTRIBUTION
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <Top5PieChart data={data} />
-            </CardContent>
-          </Card>
-        </div>
+        <h2 className="text-base font-bold text-black">{title}</h2>
       </div>
-
-      {/* ── Row 2: Full list ──────────────────────────────────────────────── */}
-      <Card className="bg-slate-900/20 border-slate-800">
-        <CardContent className="p-5">
-          <BarList
-            data={data}
-            title={listTitle}
-            description={listDescription}
-            onItemClick={showTrendSection ? onTrendToggle : undefined}
-            showExport
-            exportFilename={exportFilename}
-          />
-        </CardContent>
-      </Card>
-
-      {/* ── Row 3: Trend comparison (only shown on tabs that opt in) ─────── */}
-      {showTrendSection && trendSeriesMap && selectedTrends !== undefined && (
-        <Card className="bg-slate-900/20 border-slate-800">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-sm font-mono text-slate-200 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-emerald-400" />
-                  MONTHLY TREND COMPARISON
-                </CardTitle>
-                <CardDescription className="text-slate-500 text-xs mt-0.5">
-                  Click any row in the list above to add it here • up to 3
-                  diagnoses
-                </CardDescription>
-              </div>
-              {selectedTrends.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onTrendClear}
-                  className="text-slate-500 hover:text-red-400 text-xs h-7 px-2"
-                >
-                  <X className="h-3 w-3 mr-1" /> Clear
-                </Button>
-              )}
-            </div>
-            {selectedTrends.length > 0 && (
-              <div className="flex flex-wrap gap-2 pt-2">
-                {selectedTrends.map((name, i) => (
-                  <span
-                    key={name}
-                    onClick={() => onTrendToggle?.(name)}
-                    className="flex items-center gap-1.5 text-xs font-mono px-2 py-1 rounded-full cursor-pointer border"
-                    style={{
-                      backgroundColor:
-                        CHART_COLORS[i % CHART_COLORS.length] + "22",
-                      color: CHART_COLORS[i % CHART_COLORS.length],
-                      borderColor: CHART_COLORS[i % CHART_COLORS.length] + "55",
-                    }}
-                  >
-                    {name} <X className="h-3 w-3 opacity-60" />
-                  </span>
-                ))}
-              </div>
-            )}
-          </CardHeader>
-          <CardContent>
-            <ComparisonTrendChart
-              seriesMap={trendSeriesMap}
-              selected={selectedTrends}
-            />
-          </CardContent>
-        </Card>
-      )}
+      <div className="p-5">{children}</div>
     </div>
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+function SubCard({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-100 bg-gray-50/50 overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-gray-100 bg-white">
+        <p className="text-xs font-bold uppercase tracking-wider text-black">
+          {title}
+        </p>
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+}
+
+// ─── Stat pill ─────────────────────────────────────────────────────────────────
+function StatPill({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex flex-col items-center px-4 py-2.5 rounded-lg border border-gray-200 bg-white shadow-sm">
+      <span className="text-xs uppercase tracking-wider text-black font-bold">
+        {label}
+      </span>
+      <span className="text-2xl font-extrabold text-black">
+        {value.toLocaleString()}
+      </span>
+    </div>
+  );
+}
+
+// ─── Top1 Banner ───────────────────────────────────────────────────────────────
+function Top1Banner({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string;
+  color: string;
+}) {
+  return (
+    <div
+      className="flex flex-col px-4 py-3 rounded-lg border shadow-sm"
+      style={{ borderColor: color + "40", backgroundColor: color + "08" }}
+    >
+      <span
+        className="text-xs uppercase tracking-wider font-bold"
+        style={{ color }}
+      >
+        {label}
+      </span>
+      <span className="text-lg font-extrabold text-black truncate mt-0.5">
+        {value || "—"}
+      </span>
+    </div>
+  );
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
 export function Analytics() {
   const { user } = useAuth();
   const [loading, setLoading] = React.useState(true);
@@ -804,22 +640,14 @@ export function Analytics() {
   const [openStart, setOpenStart] = React.useState(false);
   const [openEnd, setOpenEnd] = React.useState(false);
 
-  const [selectedGraph, setSelectedGraph] = React.useState<
-    "diagnosis" | "prescription" | "drugs" | "age" | "gender"
-  >("diagnosis");
-
   const [selectedAgeGroup, setSelectedAgeGroup] = React.useState<
     "general" | "infant" | "teen" | "adult" | "middleage" | "senior"
   >("general");
 
-  // Trend state: each tab that supports trends has its own selected set
   const [diagnosisTrends, setDiagnosisTrends] = React.useState<string[]>([]);
   const [prescriptionTrends, setPrescriptionTrends] = React.useState<string[]>(
     [],
   );
-  const [ageTrends, setAgeTrends] = React.useState<string[]>([]);
-  const [maleTrends, setMaleTrends] = React.useState<string[]>([]);
-  const [femaleTrends, setFemaleTrends] = React.useState<string[]>([]);
 
   const [analytics, setAnalytics] = React.useState<AnalyticsState>({
     diagnoses: [],
@@ -837,8 +665,6 @@ export function Analytics() {
     trendByDiagnosis: {},
   });
 
-  // Keep a ref to the latest filtered patient records so toggleTrend can
-  // compute trends without re-running the full Firebase effect.
   const filteredPatientsRef = React.useRef<any[]>([]);
 
   const filterByDate = React.useCallback(
@@ -852,7 +678,6 @@ export function Analytics() {
     [startDate, endDate],
   );
 
-  // Generic trend toggle used by all tabs
   const makeToggleTrend =
     (setter: React.Dispatch<React.SetStateAction<string[]>>) =>
     (diagnosisName: string) => {
@@ -863,9 +688,7 @@ export function Analytics() {
           : prev.length >= 3
             ? [...prev.slice(1), diagnosisName]
             : [...prev, diagnosisName];
-
         if (!removing) {
-          // Pre-compute trend for the new name if not already stored
           setAnalytics((a) => {
             if (a.trendByDiagnosis[diagnosisName]) return a;
             const trend = getDiagnosisTrend(
@@ -893,20 +716,9 @@ export function Analytics() {
     () => makeToggleTrend(setPrescriptionTrends),
     [],
   );
-  const toggleAgeTrend = React.useMemo(() => makeToggleTrend(setAgeTrends), []);
-  const toggleMaleTrend = React.useMemo(
-    () => makeToggleTrend(setMaleTrends),
-    [],
-  );
-  const toggleFemaleTrend = React.useMemo(
-    () => makeToggleTrend(setFemaleTrends),
-    [],
-  );
 
-  // Firebase subscription
   React.useEffect(() => {
     if (!user) return;
-
     const patientRef = ref(db, "patients");
     const prescriptionRef = ref(db, "prescriptions");
 
@@ -947,18 +759,10 @@ export function Analytics() {
       });
 
       setAnalytics((prev) => {
-        // Refresh any already-selected trends against new filtered data
         const updatedTrends = { ...prev.trendByDiagnosis };
-        [
-          ...diagnosisTrends,
-          ...prescriptionTrends,
-          ...ageTrends,
-          ...maleTrends,
-          ...femaleTrends,
-        ].forEach((name) => {
+        [...diagnosisTrends, ...prescriptionTrends].forEach((name) => {
           updatedTrends[name] = getDiagnosisTrend(filtered, name);
         });
-
         return {
           ...prev,
           diagnoses: getDiagnosisCounts(filtered),
@@ -994,17 +798,7 @@ export function Analytics() {
     };
   }, [user, startDate, endDate]);
 
-  const insights = React.useMemo(
-    () => generateInsights(analytics),
-    [analytics],
-  );
-
-  const totalDiagnoses = analytics.diagnoses.reduce((s, d) => s + d.count, 0);
-  const totalDrugs = analytics.drugs.reduce((s, d) => s + d.count, 0);
-  const totalPrescriptions = analytics.prescriptions.reduce(
-    (s, d) => s + d.count,
-    0,
-  );
+  const totalPatients = analytics.genders.reduce((s, d) => s + d.count, 0);
 
   const ageDataMap = {
     general: analytics.ages,
@@ -1015,57 +809,54 @@ export function Analytics() {
     senior: analytics.senior,
   } as const;
 
-  const ageTitles = {
-    general: "Most frequent ages recorded",
-    infant: "Most common diagnoses — infants (0–1)",
-    teen: "Most common diagnoses — teens (2–20)",
-    adult: "Most common diagnoses — adults (21–44)",
-    middleage: "Most common diagnoses — middle age (45–64)",
-    senior: "Most common diagnoses — seniors (65+)",
+  const ageGroupLabels = {
+    general: "Age distribution",
+    infant: "Infant (0–1)",
+    teen: "Teen (2–20)",
+    adult: "Adult (21–44)",
+    middleage: "Middle age (45–64)",
+    senior: "Senior (65+)",
   } as const;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-          <p className="text-slate-400 font-mono text-sm">Loading analytics…</p>
+          <div className="w-8 h-8 border-2 border-[#00a896]/30 border-t-[#00a896] rounded-full animate-spin" />
+          <p className="text-black font-semibold text-sm">Loading analytics…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      {/* ── Sticky header ───────────────────────────────────────────────────── */}
-      <div className="border-b border-slate-800 bg-slate-900/30 backdrop-blur-sm sticky top-0 z-10">
+    <div className="min-h-screen bg-gray-50">
+      {/* ── Header ────────────────────────────────────────────────────────────── */}
+      <div className="border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm">
         <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <Activity className="h-5 w-5 text-emerald-400" />
+            <div className="p-2 rounded-lg bg-[#00a896]/10">
+              <Activity className="h-5 w-5 text-[#00a896]" />
             </div>
             <div>
-              <h1 className="text-xl font-mono font-bold text-slate-100 tracking-tight">
-                MEDICAL RECORDS ANALYTICS
+              <h1 className="text-xl font-extrabold text-black tracking-tight">
+                Medical Records Analytics
               </h1>
-              <p className="text-xs text-slate-400 font-mono">
-                Medical Records &amp; Prescriptions Analysis
+              <p className="text-sm text-black font-semibold">
+                Records &amp; Prescriptions Overview
               </p>
             </div>
           </div>
 
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-center">
             <Popover open={openStart} onOpenChange={setOpenStart}>
               <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="border-slate-700 !bg-emerald-600 text-slate-100 hover:bg-emerald-700 font-mono text-xs"
-                >
-                  {startDate ? startDate.toLocaleDateString() : "START DATE"}
-                  <ChevronDownIcon className="ml-2 h-3 w-3" />
-                </Button>
+                <button className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold border border-gray-200 rounded-lg !bg-[#00c4b4] text-white hover:bg-gray-50 transition-colors shadow-sm">
+                  {startDate ? startDate.toLocaleDateString() : "Start date"}
+                  <ChevronDownIcon className="h-3 w-3 opacity-60" />
+                </button>
               </PopoverTrigger>
-              <PopoverContent className="bg-slate-900 border-slate-800">
+              <PopoverContent className="bg-white border-gray-200 shadow-lg">
                 <Calendar
                   mode="single"
                   selected={startDate}
@@ -1073,22 +864,18 @@ export function Analytics() {
                     setStartDate(d);
                     setOpenStart(false);
                   }}
-                  className="bg-slate-900 text-slate-100"
                 />
               </PopoverContent>
             </Popover>
 
             <Popover open={openEnd} onOpenChange={setOpenEnd}>
               <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="border-slate-700 !bg-emerald-600 text-slate-100 hover:bg-emerald-700 font-mono text-xs"
-                >
-                  {endDate ? endDate.toLocaleDateString() : "END DATE"}
-                  <ChevronDownIcon className="ml-2 h-3 w-3" />
-                </Button>
+                <button className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold border border-gray-200 rounded-lg !bg-[#00c4b4] text-white hover:bg-gray-50 transition-colors shadow-sm">
+                  {endDate ? endDate.toLocaleDateString() : "End date"}
+                  <ChevronDownIcon className="h-3 w-3 opacity-60" />
+                </button>
               </PopoverTrigger>
-              <PopoverContent className="bg-slate-900 border-slate-800">
+              <PopoverContent className="bg-white border-gray-200 shadow-lg">
                 <Calendar
                   mode="single"
                   selected={endDate}
@@ -1096,255 +883,273 @@ export function Analytics() {
                     setEndDate(d);
                     setOpenEnd(false);
                   }}
-                  className="bg-slate-900 text-slate-100"
                 />
               </PopoverContent>
             </Popover>
 
             {(startDate || endDate) && (
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
                 onClick={() => {
                   setStartDate(undefined);
                   setEndDate(undefined);
                 }}
-                className="text-slate-400 hover:text-red-400 text-xs font-mono"
+                className="inline-flex items-center gap-1 text-sm font-bold text-gray-500 hover:text-red-400 transition-colors px-2 py-1"
               >
-                <X className="h-3 w-3 mr-1" /> Clear
-              </Button>
+                <X className="h-3 w-3" /> Clear
+              </button>
             )}
           </div>
         </div>
       </div>
 
       <div className="container mx-auto px-4 py-6 space-y-6">
-        {/* ── Metric cards ──────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            title="TOTAL DIAGNOSES"
-            value={totalDiagnoses}
-            icon={Activity}
-          />
-          <MetricCard
-            title="UNIQUE DIAGNOSES"
-            value={analytics.diagnoses.length}
-            icon={List}
-          />
-          <MetricCard
-            title="PRESCRIPTIONS"
-            value={totalPrescriptions}
-            icon={ScrollText}
-          />
-          <MetricCard
-            title="UNIQUE DRUGS"
-            value={analytics.drugs.length}
-            icon={Zap}
-          />
-        </div>
+        {/* ══ ROW 1: Patient Demographics ══════════════════════════════════════ */}
+        <SectionCard
+          title="Patient Demographics"
+          icon={Users}
+          iconColor="#378add"
+        >
+          {/* Stat pills */}
+          <div className="flex flex-wrap gap-3 mb-6">
+            <StatPill
+              label="Male"
+              value={
+                analytics.genders.find((g) => g.label.toLowerCase() === "male")
+                  ?.count ?? 0
+              }
+            />
+            <StatPill
+              label="Female"
+              value={
+                analytics.genders.find(
+                  (g) => g.label.toLowerCase() === "female",
+                )?.count ?? 0
+              }
+            />
+          </div>
 
-        {/* ── Auto insights ──────────────────────────────────────────────────── */}
-        <InsightsPanel insights={insights} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Gender */}
+            <SubCard title="Gender distribution">
+              {analytics.genders.length ? (
+                <Top5PieChart data={analytics.genders} />
+              ) : (
+                <p className="text-sm font-semibold text-black py-4 text-center">
+                  No gender data available
+                </p>
+              )}
+            </SubCard>
 
-        {/* ── Tab navigation ─────────────────────────────────────────────────── */}
-        <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-2">
-          {(
-            [
-              { id: "diagnosis", label: "DIAGNOSES", icon: Activity },
-              { id: "prescription", label: "PRESCRIPTIONS", icon: ScrollText },
-              { id: "drugs", label: "DRUGS", icon: Zap },
-              { id: "age", label: "AGE GROUPS", icon: BarChart3 },
-              { id: "gender", label: "GENDER", icon: Users },
-            ] as const
-          ).map((tab) => (
-            <Button
-              key={tab.id}
-              variant={selectedGraph === tab.id ? "default" : "ghost"}
-              onClick={() => setSelectedGraph(tab.id)}
-              className={`gap-2 font-mono text-sm ${
-                selectedGraph === tab.id
-                  ? "!bg-emerald-600 hover:bg-emerald-700 text-white"
-                  : "!text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-              }`}
-            >
-              <tab.icon className="h-4 w-4" />
-              {tab.label}
-            </Button>
-          ))}
-        </div>
+            {/* Age group selector + chart */}
+            <SubCard title="Age group breakdown">
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {(
+                  [
+                    { id: "general", label: "General" },
+                    { id: "infant", label: "Infant (0–1)" },
+                    { id: "teen", label: "Teen (2–20)" },
+                    { id: "adult", label: "Adult (21–44)" },
+                    { id: "middleage", label: "Middle age (45–64)" },
+                    { id: "senior", label: "Senior (65+)" },
+                  ] as const
+                ).map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => setSelectedAgeGroup(g.id)}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-full border transition-colors ${
+                      selectedAgeGroup === g.id
+                        ? "!bg-[#00a896] text-white border-[#00a896]"
+                        : "!bg-white text-black border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+              {ageDataMap[selectedAgeGroup].length ? (
+                selectedAgeGroup === "general" ? (
+                  <Top5BarChart data={ageDataMap[selectedAgeGroup]} />
+                ) : (
+                  <Top5PieChart data={ageDataMap[selectedAgeGroup]} />
+                )
+              ) : (
+                <p className="text-sm font-semibold text-black py-4 text-center">
+                  No data for this group
+                </p>
+              )}
+            </SubCard>
+          </div>
 
-        {/* ════════════════════════════════════════════════════════════════════
-            DIAGNOSIS TAB
-            Layout: top-5 bar + pie → full list → trend comparison
-        ════════════════════════════════════════════════════════════════════ */}
-        {selectedGraph === "diagnosis" && (
-          <AnalyticsSection
-            data={analytics.diagnoses}
-            title="Top 5 diagnoses"
-            description="Most frequently recorded across all patients"
-            listTitle="All diagnoses"
-            listDescription="Click any row to add it to the trend comparison below"
-            exportFilename="diagnoses"
-            trendSeriesMap={analytics.trendByDiagnosis}
-            selectedTrends={diagnosisTrends}
-            onTrendToggle={toggleDiagnosisTrend}
-            onTrendClear={() => setDiagnosisTrends([])}
-            showTrendSection
-          />
-        )}
+          {/* Male/Female diagnosis side-by-side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+            <SubCard title="Top diagnoses — male">
+              {analytics.male.length ? (
+                <Top5BarChart data={analytics.male} />
+              ) : (
+                <p className="text-sm font-semibold text-black py-4 text-center">
+                  No data
+                </p>
+              )}
+            </SubCard>
+            <SubCard title="Top diagnoses — female">
+              {analytics.female.length ? (
+                <Top5BarChart data={analytics.female} />
+              ) : (
+                <p className="text-sm font-semibold text-black py-4 text-center">
+                  No data
+                </p>
+              )}
+            </SubCard>
+          </div>
+        </SectionCard>
 
-        {/* ════════════════════════════════════════════════════════════════════
-            PRESCRIPTION TAB
-        ════════════════════════════════════════════════════════════════════ */}
-        {selectedGraph === "prescription" && (
-          <AnalyticsSection
-            data={analytics.prescriptions}
-            title="Top 5 prescription diagnoses"
-            description="Most frequent diagnoses across all prescriptions"
-            listTitle="All prescription diagnoses"
-            exportFilename="prescriptions"
-            trendSeriesMap={analytics.trendByDiagnosis}
-            selectedTrends={prescriptionTrends}
-            onTrendToggle={togglePrescriptionTrend}
-            onTrendClear={() => setPrescriptionTrends([])}
-            showTrendSection
-          />
-        )}
+        {/* ══ ROW 2: Diagnoses ══════════════════════════════════════════════════ */}
+        <SectionCard title="Diagnoses" icon={Stethoscope} iconColor="#00a896">
+          {/* Top 1 banners only */}
+          <div className="flex flex-wrap gap-3 mb-6">
+            <Top1Banner
+              label="Top Diagnosis — Records"
+              value={analytics.diagnoses[0]?.label ?? "—"}
+              color="#00a896"
+            />
+            <Top1Banner
+              label="Top Diagnosis — Prescriptions"
+              value={analytics.prescriptions[0]?.label ?? "—"}
+              color="#378add"
+            />
+          </div>
 
-        {/* ════════════════════════════════════════════════════════════════════
-            DRUGS TAB — no trend (drugs aren't diagnoses, trend would be misleading)
-        ════════════════════════════════════════════════════════════════════ */}
-        {selectedGraph === "drugs" && (
-          <AnalyticsSection
-            data={analytics.drugs}
-            title="Top 5 prescribed drugs"
-            description="Most frequently prescribed across all records"
-            listTitle="All prescribed drugs"
-            exportFilename="drugs"
-            showTrendSection={false}
-          />
-        )}
-
-        {/* ════════════════════════════════════════════════════════════════════
-            AGE TAB
-        ════════════════════════════════════════════════════════════════════ */}
-        {selectedGraph === "age" && (
-          <div className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  { id: "general", label: "General" },
-                  { id: "infant", label: "Infant (0–1)" },
-                  { id: "teen", label: "Teen (2–20)" },
-                  { id: "adult", label: "Adult (21–44)" },
-                  { id: "middleage", label: "Middle age (45–64)" },
-                  { id: "senior", label: "Senior (65+)" },
-                ] as const
-              ).map((g) => (
-                <Button
-                  key={g.id}
-                  variant={selectedAgeGroup === g.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    setSelectedAgeGroup(g.id);
-                    setAgeTrends([]);
-                  }}
-                  className={`text-xs font-mono ${
-                    selectedAgeGroup === g.id
-                      ? "!bg-emerald-600 hover:bg-emerald-700 text-white"
-                      : "border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-                  }`}
-                >
-                  {g.label}
-                </Button>
-              ))}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* Records diagnoses */}
+            <div className="space-y-4">
+              <SubCard title="Top 5 — consultation records">
+                {analytics.diagnoses.length ? (
+                  <Top5BarChart data={analytics.diagnoses} />
+                ) : (
+                  <p className="text-sm font-semibold text-black py-4 text-center">
+                    No data
+                  </p>
+                )}
+              </SubCard>
+              <SubCard title="Distribution — consultation records">
+                {analytics.diagnoses.length ? (
+                  <Top5PieChart data={analytics.diagnoses} />
+                ) : (
+                  <p className="text-sm font-semibold text-black py-4 text-center">
+                    No data
+                  </p>
+                )}
+              </SubCard>
             </div>
-            <AnalyticsSection
-              data={ageDataMap[selectedAgeGroup]}
-              title={`Top 5 — ${ageTitles[selectedAgeGroup].split("—")[1]?.trim() ?? ageTitles[selectedAgeGroup]}`}
-              description="Most common diagnoses in this age group"
-              listTitle={ageTitles[selectedAgeGroup]}
-              listDescription={
-                selectedAgeGroup !== "general"
-                  ? "Click any row to view monthly trend below"
-                  : undefined
-              }
-              exportFilename={`age-${selectedAgeGroup}`}
-              trendSeriesMap={analytics.trendByDiagnosis}
-              selectedTrends={ageTrends}
-              onTrendToggle={
-                selectedAgeGroup !== "general" ? toggleAgeTrend : undefined
-              }
-              onTrendClear={() => setAgeTrends([])}
-              showTrendSection={selectedAgeGroup !== "general"}
+
+            {/* Prescription diagnoses */}
+            <div className="space-y-4">
+              <SubCard title="Top 5 — prescriptions">
+                {analytics.prescriptions.length ? (
+                  <Top5BarChart data={analytics.prescriptions} />
+                ) : (
+                  <p className="text-sm font-semibold text-black py-4 text-center">
+                    No data
+                  </p>
+                )}
+              </SubCard>
+              <SubCard title="Distribution — prescriptions">
+                {analytics.prescriptions.length ? (
+                  <Top5PieChart data={analytics.prescriptions} />
+                ) : (
+                  <p className="text-sm font-semibold text-black py-4 text-center">
+                    No data
+                  </p>
+                )}
+              </SubCard>
+            </div>
+          </div>
+
+          {/* Full list — records diagnoses */}
+          <div className="space-y-4">
+            <SubCard title="All record diagnoses — click a row to view trend">
+              <BarList
+                data={analytics.diagnoses}
+                title="Consultation records"
+                description="Click any row to add it to the trend chart below"
+                onItemClick={toggleDiagnosisTrend}
+                showExport
+                exportFilename="diagnoses-records"
+              />
+            </SubCard>
+
+            <SubCard title="Monthly trend — consultation records">
+              <TrendChart
+                seriesMap={analytics.trendByDiagnosis}
+                selected={diagnosisTrends}
+                onToggle={toggleDiagnosisTrend}
+                onClear={() => setDiagnosisTrends([])}
+              />
+            </SubCard>
+
+            <SubCard title="All prescription diagnoses — click a row to view trend">
+              <BarList
+                data={analytics.prescriptions}
+                title="Prescriptions"
+                description="Click any row to add it to the trend chart below"
+                onItemClick={togglePrescriptionTrend}
+                showExport
+                exportFilename="diagnoses-prescriptions"
+              />
+            </SubCard>
+
+            <SubCard title="Monthly trend — prescriptions">
+              <TrendChart
+                seriesMap={analytics.trendByDiagnosis}
+                selected={prescriptionTrends}
+                onToggle={togglePrescriptionTrend}
+                onClear={() => setPrescriptionTrends([])}
+              />
+            </SubCard>
+          </div>
+        </SectionCard>
+
+        {/* ══ ROW 3: Drugs ══════════════════════════════════════════════════════ */}
+        <SectionCard title="Prescribed Drugs" icon={Pill} iconColor="#8b5cf6">
+          {/* Top 1 banner only */}
+          <div className="flex flex-wrap gap-3 mb-6">
+            <Top1Banner
+              label="Top Prescribed Drug"
+              value={analytics.drugs[0]?.label ?? "—"}
+              color="#8b5cf6"
             />
           </div>
-        )}
 
-        {/* ════════════════════════════════════════════════════════════════════
-            GENDER TAB — side-by-side male / female, each with their own trend
-        ════════════════════════════════════════════════════════════════════ */}
-        {selectedGraph === "gender" && (
-          <div className="space-y-6">
-            {/* Overall gender split */}
-            <AnalyticsSection
-              data={analytics.genders}
-              title="Overall gender distribution"
-              description="Total patient breakdown by gender"
-              listTitle="Gender breakdown"
-              exportFilename="gender-distribution"
-              showTrendSection={false}
-            />
-
-            {/* Male diagnoses */}
-            <Card className="bg-slate-900/20 border-slate-800">
-              <CardHeader className="pb-0">
-                <CardTitle className="text-sm font-mono text-blue-400 flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-blue-400 inline-block" />
-                  MALE — DIAGNOSIS BREAKDOWN
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <AnalyticsSection
-                  data={analytics.male}
-                  title="Top 5 — male"
-                  listTitle="All male diagnoses"
-                  listDescription="Click any row to view monthly trend below"
-                  exportFilename="diagnoses-male"
-                  trendSeriesMap={analytics.trendByDiagnosis}
-                  selectedTrends={maleTrends}
-                  onTrendToggle={toggleMaleTrend}
-                  onTrendClear={() => setMaleTrends([])}
-                  showTrendSection
-                />
-              </CardContent>
-            </Card>
-
-            {/* Female diagnoses */}
-            <Card className="bg-slate-900/20 border-slate-800">
-              <CardHeader className="pb-0">
-                <CardTitle className="text-sm font-mono text-pink-400 flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-pink-400 inline-block" />
-                  FEMALE — DIAGNOSIS BREAKDOWN
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <AnalyticsSection
-                  data={analytics.female}
-                  title="Top 5 — female"
-                  listTitle="All female diagnoses"
-                  listDescription="Click any row to view monthly trend below"
-                  exportFilename="diagnoses-female"
-                  trendSeriesMap={analytics.trendByDiagnosis}
-                  selectedTrends={femaleTrends}
-                  onTrendToggle={toggleFemaleTrend}
-                  onTrendClear={() => setFemaleTrends([])}
-                  showTrendSection
-                />
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <SubCard title="Top 5 — bar">
+              {analytics.drugs.length ? (
+                <Top5BarChart data={analytics.drugs} />
+              ) : (
+                <p className="text-sm font-semibold text-black py-4 text-center">
+                  No data
+                </p>
+              )}
+            </SubCard>
+            <SubCard title="Top 5 — distribution">
+              {analytics.drugs.length ? (
+                <Top5PieChart data={analytics.drugs} />
+              ) : (
+                <p className="text-sm font-semibold text-black py-4 text-center">
+                  No data
+                </p>
+              )}
+            </SubCard>
           </div>
-        )}
+
+          <SubCard title="All prescribed drugs">
+            <BarList
+              data={analytics.drugs}
+              title="Drug frequency"
+              showExport
+              exportFilename="drugs"
+            />
+          </SubCard>
+        </SectionCard>
       </div>
     </div>
   );

@@ -6,14 +6,12 @@ import {
   Users,
   BarChart3,
   FileText,
-  Pill,
   UserCircle,
   Shield,
   Menu,
   X,
   ChevronDown,
 } from "lucide-react";
-import { Button } from "./ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { useAuth } from "@/auth/authprovider";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -24,54 +22,44 @@ import React from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
+// Each entry is now a single destination — no sub-menus.
 
 const NAV_ITEMS = [
   {
     label: "Home",
     icon: Home,
-    items: [{ label: "Dashboard", path: "/" }],
+    path: "/",
   },
   {
     label: "Records",
     icon: FileText,
-    items: [
-      { label: "View Records", path: "/records" },
-      { label: "Add Record", path: "/add-record" },
-    ],
-  },
-  {
-    label: "Prescriptions",
-    icon: Pill,
-    items: [{ label: "View Prescriptions", path: "/prescriptions" }],
+    path: "/records",
   },
   {
     label: "Analytics",
     icon: BarChart3,
-    items: [{ label: "Dashboard", path: "/analytics" }],
+    path: "/analytics",
   },
   {
     label: "Users",
     icon: Users,
-    items: [{ label: "View All Users", path: "/users" }],
+    path: "/users",
   },
   {
     label: "Admin",
     icon: Shield,
-    items: [
-      { label: "Manage Logs", path: "/logs" },
-      { label: "Manage Users", path: "/users" },
-    ],
+    path: "/logs",
+    adminOnly: true,
   },
 ];
 
-// ─── Desktop nav item ─────────────────────────────────────────────────────────
+// ─── Desktop nav item (plain button, no dropdown) ─────────────────────────────
 
 const NavItem = ({
   item,
@@ -84,38 +72,21 @@ const NavItem = ({
   const Icon = item.icon;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className={`
-            inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium
-            transition-all duration-150
-            ${
-              isActive
-                ? "bg-white text-[#00a896]"
-                : "text-white/90 hover:bg-white/15 hover:text-white"
-            }
-          `}
-        >
-          <Icon className="w-4 h-4" />
-          {item.label}
-          {item.items.length > 1 && (
-            <ChevronDown className="w-3 h-3 opacity-60" />
-          )}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-44 mt-1">
-        {item.items.map((sub) => (
-          <DropdownMenuItem
-            key={sub.path}
-            onClick={() => navigate(sub.path)}
-            className="text-sm"
-          >
-            {sub.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <button
+      onClick={() => navigate(item.path)}
+      className={`
+        inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium
+        transition-all duration-150
+        ${
+          isActive
+            ? "bg-white text-[#00a896]"
+            : "text-white/90 hover:bg-white/15 hover:text-white"
+        }
+      `}
+    >
+      <Icon className="w-4 h-4" />
+      {item.label}
+    </button>
   );
 };
 
@@ -128,22 +99,18 @@ export default function HeaderPage() {
   const isMobile = useIsMobile();
   const isAdmin = user?.type?.toLowerCase() === "admin";
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
-  const [expandedMobileNav, setExpandedMobileNav] = React.useState<
-    string | null
-  >(null);
 
   // Close mobile menu on route change
   React.useEffect(() => {
     setMobileMenuOpen(false);
-    setExpandedMobileNav(null);
   }, [location.pathname]);
 
   const isActive = (item: (typeof NAV_ITEMS)[0]) =>
-    item.items.some((sub) => sub.path === location.pathname);
+    item.path === location.pathname;
 
-  // ✅ Filter nav items: hide Admin for non-admins
+  // Filter nav items: hide Admin for non-admins
   const visibleNavItems = NAV_ITEMS.filter(
-    (item) => item.label !== "Admin" || isAdmin,
+    (item) => !item.adminOnly || isAdmin,
   );
 
   return (
@@ -168,7 +135,7 @@ export default function HeaderPage() {
             </div>
           </div>
 
-          {/* ✅ Desktop nav — only when NOT mobile */}
+          {/* Desktop nav — only when NOT mobile */}
           {!isMobile && (
             <nav className="flex items-center gap-0.5">
               {visibleNavItems.map((item) => (
@@ -180,8 +147,6 @@ export default function HeaderPage() {
               ))}
             </nav>
           )}
-
-          {/* ✅ REMOVED: broken isAdmin duplicate dropdown that was always rendering */}
 
           {/* Right: user area + mobile hamburger */}
           <div className="flex items-center gap-2">
@@ -246,7 +211,6 @@ export default function HeaderPage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* ✅ Mobile hamburger — only when mobile */}
             {isMobile && (
               <button
                 onClick={() => setMobileMenuOpen((v) => !v)}
@@ -263,67 +227,30 @@ export default function HeaderPage() {
           </div>
         </div>
 
-        {/* ✅ Mobile nav drawer — only when mobile and open */}
+        {/* Mobile nav — flat list of buttons, no expand/collapse */}
         {isMobile && mobileMenuOpen && (
           <div className="border-t border-white/10 bg-[#1a1a2e] px-4 pb-4 pt-2">
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
-              const expanded = expandedMobileNav === item.label;
               const active = isActive(item);
 
               return (
-                <div key={item.label}>
-                  <button
-                    onClick={() =>
-                      item.items.length === 1
-                        ? navigate(item.items[0].path)
-                        : setExpandedMobileNav(expanded ? null : item.label)
+                <button
+                  key={item.label}
+                  onClick={() => navigate(item.path)}
+                  className={`
+                    w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium my-0.5
+                    transition-colors
+                    ${
+                      active
+                        ? "bg-[#00a896]/20 text-[#00a896]"
+                        : "text-white/80 hover:bg-white/10 hover:text-white"
                     }
-                    className={`
-                      w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium my-0.5
-                      transition-colors
-                      ${
-                        active
-                          ? "bg-[#00a896]/20 text-[#00a896]"
-                          : "text-white/80 hover:bg-white/10 hover:text-white"
-                      }
-                    `}
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <Icon className="w-4 h-4" />
-                      {item.label}
-                    </span>
-                    {item.items.length > 1 && (
-                      <ChevronDown
-                        className={`w-4 h-4 transition-transform ${
-                          expanded ? "rotate-180" : ""
-                        }`}
-                      />
-                    )}
-                  </button>
-
-                  {/* Sub-items */}
-                  {expanded && item.items.length > 1 && (
-                    <div className="ml-6 mt-0.5 space-y-0.5">
-                      {item.items.map((sub) => (
-                        <button
-                          key={sub.path}
-                          onClick={() => navigate(sub.path)}
-                          className={`
-                            w-full text-left px-3 py-2 rounded-lg text-sm transition-colors
-                            ${
-                              location.pathname === sub.path
-                                ? "text-[#00a896] font-medium"
-                                : "text-white/60 hover:text-white hover:bg-white/10"
-                            }
-                          `}
-                        >
-                          {sub.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                  `}
+                >
+                  <Icon className="w-4 h-4" />
+                  {item.label}
+                </button>
               );
             })}
           </div>

@@ -496,7 +496,7 @@ const PatientActions = ({ patient }: { patient: Patient }) => {
             <PillIcon className="w-3.5 h-3.5 text-[#00a896]" />
           </button> */}
 
-          <button
+          {/* <button
             onClick={() =>
               navigate(`/add-consultation-record/${patient.id}`, {
                 state: patient,
@@ -507,6 +507,18 @@ const PatientActions = ({ patient }: { patient: Patient }) => {
           >
             <Plus className="w-3.5 h-3.5 text-[#00a896]" />
           </button>
+          <button
+            onClick={() => setOpenUser(true)}
+            title="Edit patient"
+            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
+          >
+            <PenIcon className="w-3.5 h-3.5 text-[#00a896]" />
+          </button>
+          <AddRecordsDrawer
+            open={openUser}
+            onOpenChange={setOpenUser}
+            patient={patient}
+          /> */}
         </div>
       )}
       {/* <PrescriptionDrawer
@@ -1053,9 +1065,7 @@ export function MedicalRecords() {
         <>
           {filteredRows.length === 0 ? (
             <div className="rounded-xl border border-gray-200 bg-white p-6">
-              <EmptyRecords>
-                <AddRecordsDrawer />
-              </EmptyRecords>
+              <EmptyRecords>{/* <AddRecordsDrawer /> */}</EmptyRecords>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -1118,7 +1128,7 @@ export function MedicalRecords() {
                         className="h-32 text-center"
                       >
                         <EmptyRecords>
-                          <AddRecordsDrawer />
+                          {/* <AddRecordsDrawer /> */}
                         </EmptyRecords>
                       </TableCell>
                     </TableRow>

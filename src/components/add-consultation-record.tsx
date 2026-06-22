@@ -1,14 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "./ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "./ui/calendar";
-
+import { Switch } from "@/components/animate-ui/components/radix/switch";
+import AutocompleteDrugs from "./ui/autocomplete_drugs";
 import {
   CalendarIcon,
   Heart,
@@ -25,6 +26,7 @@ import {
   Users,
   Stethoscope,
   ShieldCheck,
+  Pill,
 } from "lucide-react";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import {
@@ -52,10 +54,10 @@ import { useAuth } from "@/auth/authprovider";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
+import Autocomplete from "./ui/autocomplete";
 
 export type MedicalRecords = {
   recordId: string;
-
   patientDiagnosis: { diagnosis: string; severity: string; notes: string }[];
   addedBy: string;
   familyHistory: {
@@ -88,7 +90,6 @@ export type Patient = {
   gender: string;
   age: number;
   birthdate: string;
-
   address: string;
   address1: string;
   address2: string;
@@ -97,6 +98,10 @@ export type Patient = {
   telephone: string;
   addedBy: string;
   records?: { [key: string]: MedicalRecords };
+};
+
+type AddConsultationRecordsProps = {
+  patient: Patient;
 };
 
 function formatDate(date: Date | undefined) {
@@ -113,11 +118,14 @@ function isValidDate(date: Date | undefined) {
   return !isNaN(date.getTime());
 }
 
-export function AddConsultationRecords() {
+export function AddConsultationRecords({
+  patient: patientProp,
+}: AddConsultationRecordsProps) {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const location = useLocation();
-  const patient = location.state as Patient | null;
+  const patientFromState = location.state as Patient | null;
+  const patient = patientFromState ?? patientProp;
   const navigate = useNavigate();
 
   if (!patient) {
@@ -161,7 +169,6 @@ export function AddConsultationRecords() {
   };
 
   const [fields, setFields] = useState(initialState);
-  const [openSections, setOpenSections] = useState<string[]>(["basic"]);
   const [isLoading, setIsLoading] = useState(false);
   const [patientDiagnosis, setDiagnosis] = useState([
     { diagnosis: "", severity: "", notes: "" },
@@ -177,11 +184,20 @@ export function AddConsultationRecords() {
   ]);
   const [linkedUsers, setLinkedUsers] = React.useState<any[]>([]);
   const [selectedLinkedUser, setSelectedLinkedUser] = React.useState("");
+  const [includePrescription, setIncludePrescription] = useState(false);
+
+  // ── PRESCRIPTION STATE ──
+  const [drugs, setDrugs] = useState([
+    { medicine: "", unit: "", dosage: "", purpose: "", frequency: "" },
+  ]);
+  const [prescriptionFields, setPrescriptionFields] = useState({
+    examination: "",
+    recommendation: "",
+  });
 
   const userIsAdmin = user?.type?.toLowerCase() === "admin";
   const userIsSecretary = user?.type?.toLowerCase() === "secretary";
   const userIsDoctor = user?.type?.toLowerCase() === "doctor";
-  console.log(patient);
 
   React.useEffect(() => {
     if (!user) return;
@@ -211,8 +227,8 @@ export function AddConsultationRecords() {
 
   const handleChange = (key: string, value: string | boolean) => {
     setFields((prev) => ({ ...prev, [key]: value }));
-    console.log(key, value);
   };
+
   const handleAddDiagnosis = () =>
     setDiagnosis([
       ...patientDiagnosis,
@@ -261,6 +277,26 @@ export function AddConsultationRecords() {
     setFamilyHistory(updated);
   };
 
+  // ── DRUG HANDLERS ──
+  const handleAddDrug = () =>
+    setDrugs([
+      ...drugs,
+      { medicine: "", unit: "", dosage: "", purpose: "", frequency: "" },
+    ]);
+
+  const handleRemoveDrug = (index: number) =>
+    setDrugs(drugs.filter((_, i) => i !== index));
+
+  const handleDrugChange = (
+    index: number,
+    key: "medicine" | "unit" | "dosage" | "purpose" | "frequency",
+    value: string,
+  ) => {
+    const updated = [...drugs];
+    updated[index][key] = value;
+    setDrugs(updated);
+  };
+
   const addConsultationRecord = async () => {
     if (!patient?.id) {
       toast.error("Patient data is missing");
@@ -273,7 +309,9 @@ export function AddConsultationRecords() {
       const logsRef = ref(db, "logs/");
       const recordsRef = ref(db, `patients/${patient.id}/records`);
       const newRecord = push(recordsRef);
+      const recordId = newRecord.key!;
       const newLog = push(logsRef);
+
       const allPatientsRef = ref(db, "patients");
       const allPatientsSnap = await get(allPatientsRef);
       let totalRecords = 0;
@@ -286,7 +324,6 @@ export function AddConsultationRecords() {
         });
       }
       const recordNumber = totalRecords + 1;
-      const recordId = newRecord.key || "";
 
       const recordData = {
         recordId,
@@ -309,12 +346,13 @@ export function AddConsultationRecords() {
         diet: fields.patientDiet,
         familyHistory: familyHistory,
         addedBy: user?.email,
+        approvedBy: user?.firstName,
         createdBy: user?.uid,
         createdAt: Date.now(),
       };
 
       if (userIsSecretary) {
-        const pendingRef = ref(db, "pending");
+        const pendingRef = ref(db, "pending/records");
         const newPending = push(pendingRef);
         await set(newPending, {
           ...recordData,
@@ -327,12 +365,48 @@ export function AddConsultationRecords() {
         });
         toast.success("Consultation record submitted for approval!");
       } else {
+        // 1. Save the record first
         await set(newRecord, recordData);
+
+        // 2. If prescription toggle is on, save it now using the recordId we just created
+        if (includePrescription) {
+          const prescriptionRef = ref(
+            db,
+            `patients/${patient.id}/records/${recordId}/prescription`,
+          );
+          await set(prescriptionRef, {
+            patientFirstName: patient.firstName,
+            patientLastName: patient.lastName,
+            patientAddress: patient.address1 ?? patient.address ?? "",
+            patientAge: patient.age,
+            patientGender: patient.gender,
+            diagnosis: patientDiagnosis,
+            examination: prescriptionFields.examination,
+            recommendation: prescriptionFields.recommendation,
+            drugs: drugs,
+            addedBy: `${user?.firstName} ${user?.lastName}`,
+            field: user?.field,
+            doctorId: user?.medicalId,
+            createdBy: user?.uid,
+            updatedAt: new Date().toLocaleString(),
+          });
+
+          const prescriptionLog = push(logsRef);
+          await set(prescriptionLog, {
+            prescriptionLog: `Prescription added by ${user?.firstName} ${user?.lastName} for record ${recordId}`,
+            logTime: new Date().toLocaleString(),
+          });
+        }
+
         await set(newLog, {
           medicalRecordLog: `Consultation record added by ${user?.firstName} ${user?.lastName} for patient ${patient.firstName} ${patient.lastName}`,
           logTime: new Date().toLocaleString(),
         });
-        toast.success("Consultation record added successfully!");
+        toast.success(
+          includePrescription
+            ? "Consultation record and prescription saved!"
+            : "Consultation record added successfully!",
+        );
       }
 
       setFields(initialState);
@@ -595,6 +669,7 @@ export function AddConsultationRecords() {
                   />
                 </Field>
               </div>
+
               {/* ── VITAL STATISTICS ── */}
               <div className="space-y-4">
                 <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
@@ -851,15 +926,11 @@ export function AddConsultationRecords() {
                       } gap-3 p-4 border border-gray-200 rounded-xl bg-gray-50`}
                     >
                       <Field>
-                        <Input
+                        <Autocomplete
                           placeholder="Diagnosis"
                           value={diagnosis.diagnosis}
-                          onChange={(e) =>
-                            handleDiagnosisChange(
-                              index,
-                              "diagnosis",
-                              e.target.value,
-                            )
+                          onChange={(value) =>
+                            handleDiagnosisChange(index, "diagnosis", value)
                           }
                         />
                       </Field>
@@ -1111,6 +1182,192 @@ export function AddConsultationRecords() {
                       ))}
                     </div>
                   </>
+                )}
+              </div>
+
+              {/* ── ADD PRESCRIPTION TOGGLE ── */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
+                      <Pill className="w-4 h-4 text-[#00a896]" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">
+                        Add Prescription?
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Toggle to attach a prescription to this consultation
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={includePrescription}
+                    onCheckedChange={setIncludePrescription}
+                  />
+                </div>
+
+                {includePrescription && (
+                  <div className="border border-[#00c4b4]/30 rounded-2xl overflow-hidden">
+                    <div className="bg-[#00c4b4]/5 px-6 py-3 border-b border-[#00c4b4]/20">
+                      <p className="text-sm text-[#00a896] font-medium">
+                        Prescription will be saved together with this
+                        consultation record
+                      </p>
+                    </div>
+
+                    <div className="p-4 md:p-6 space-y-6">
+                      {/* ── DRUG TABLE ── */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
+                          <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
+                            <Pill className="w-4 h-4 text-[#00a896]" />
+                          </div>
+                          <h2 className="text-lg font-semibold text-gray-800">
+                            Drug Prescriptions
+                          </h2>
+                        </div>
+
+                        {/* TABLE HEADER */}
+                        <div className="grid grid-cols-6 bg-gray-50 border border-gray-200 rounded-t-xl px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          <div>Medicine</div>
+                          <div>Unit</div>
+                          <div>Dosage</div>
+                          <div>Purpose</div>
+                          <div>Frequency</div>
+                          <div className="text-center">Action</div>
+                        </div>
+
+                        {/* TABLE BODY */}
+                        <div className="border border-t-0 border-gray-200 rounded-b-xl overflow-hidden divide-y divide-gray-200">
+                          {drugs.map((drug, index) => (
+                            <div
+                              key={index}
+                              className="grid grid-cols-6 gap-3 px-4 py-3 items-center hover:bg-gray-50 transition-colors"
+                            >
+                              <AutocompleteDrugs
+                                placeholder="Paracetamol"
+                                value={drug.medicine}
+                                onChange={(value) =>
+                                  handleDrugChange(index, "medicine", value)
+                                }
+                              />
+                              <Input
+                                placeholder="Tablet / ml"
+                                value={drug.unit}
+                                onChange={(e) =>
+                                  handleDrugChange(
+                                    index,
+                                    "unit",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                              <Input
+                                placeholder="500mg"
+                                value={drug.dosage}
+                                onChange={(e) =>
+                                  handleDrugChange(
+                                    index,
+                                    "dosage",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                              <Input
+                                placeholder="Pain relief"
+                                value={drug.purpose}
+                                onChange={(e) =>
+                                  handleDrugChange(
+                                    index,
+                                    "purpose",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                              <Input
+                                placeholder="2x a day"
+                                value={drug.frequency}
+                                onChange={(e) =>
+                                  handleDrugChange(
+                                    index,
+                                    "frequency",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                              <div className="flex justify-center">
+                                {drugs.length > 1 && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="destructive"
+                                    className="!bg-red-400 text-white h-8 text-xs"
+                                    onClick={() => handleRemoveDrug(index)}
+                                  >
+                                    Remove
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="!bg-[#00a896] !text-white hover:!bg-[#028090]"
+                          onClick={handleAddDrug}
+                        >
+                          + Add Drug Row
+                        </Button>
+                      </div>
+
+                      {/* ── EXAMINATION & RECOMMENDATIONS ── */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
+                          <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
+                            <Stethoscope className="w-4 h-4 text-[#00a896]" />
+                          </div>
+                          <h2 className="text-lg font-semibold text-gray-800">
+                            Examination & Recommendations
+                          </h2>
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-6">
+                          <Field>
+                            <FieldLabel className="text-sm text-gray-600 mb-1 block">
+                              Examination
+                            </FieldLabel>
+                            <Input
+                              placeholder="e.g. Physical examination findings..."
+                              value={prescriptionFields.examination}
+                              onChange={(e) =>
+                                setPrescriptionFields((prev) => ({
+                                  ...prev,
+                                  examination: e.target.value,
+                                }))
+                              }
+                            />
+                          </Field>
+                          <Field>
+                            <FieldLabel className="text-sm text-gray-600 mb-1 block">
+                              Recommendations
+                            </FieldLabel>
+                            <Input
+                              placeholder="e.g. Rest, hydration, follow-up in 3 days..."
+                              value={prescriptionFields.recommendation}
+                              onChange={(e) =>
+                                setPrescriptionFields((prev) => ({
+                                  ...prev,
+                                  recommendation: e.target.value,
+                                }))
+                              }
+                            />
+                          </Field>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 

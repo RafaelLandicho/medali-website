@@ -1,4 +1,6 @@
 import { Button } from "@/components/ui/button";
+import Autocomplete from "@/components/ui/autocomplete";
+import AutocompleteDrugs from "./ui/autocomplete_drugs";
 import { toast } from "sonner";
 import { Field, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -38,6 +40,7 @@ type AddPrescriptionProps = {
       severity: string;
       notes: string;
     }[];
+    readOnly?: boolean;
   };
 };
 
@@ -275,15 +278,11 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
                       className="p-4 border border-gray-200 rounded-xl bg-gray-50 space-y-3"
                     >
                       <div className="grid md:grid-cols-2 gap-3">
-                        <Input
-                          placeholder="Diagnosis"
+                        <Autocomplete
+                          placeholder="Illness"
                           value={item.diagnosis}
-                          onChange={(e) =>
-                            handleDiagnosisChange(
-                              index,
-                              "diagnosis",
-                              e.target.value,
-                            )
+                          onChange={(value) =>
+                            handleDiagnosisChange(index, "diagnosis", value)
                           }
                         />
                         <Input
@@ -349,15 +348,11 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
                       key={index}
                       className="grid grid-cols-6 gap-3 px-4 py-3 items-center hover:bg-gray-50 transition-colors"
                     >
-                      <Input
+                      <AutocompleteDrugs
                         placeholder="Paracetamol"
                         value={drug.medicine}
-                        onChange={(e) =>
-                          handlePrescriptionChange(
-                            index,
-                            "medicine",
-                            e.target.value,
-                          )
+                        onChange={(value) =>
+                          handleDiagnosisChange(index, "diagnosis", value)
                         }
                       />
                       <Input

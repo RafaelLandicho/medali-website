@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -48,7 +50,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import type { Patient } from "./medical_records";
-import { ref, update, get, push } from "firebase/database";
+import { ref, update, get, set, push } from "firebase/database";
 import { db } from "@/firebaseConfig";
 import { useAuth } from "@/auth/authprovider";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -74,7 +76,7 @@ function isValidDate(date: Date | undefined) {
   return !isNaN(date.getTime());
 }
 
-// ── Shared section header matching AddRecords style ──────────────────────────
+// ── Shared section header ──────────────────────────────────────────────────────
 function SectionHeader({
   icon,
   title,
@@ -99,6 +101,24 @@ function SectionHeader({
   );
 }
 
+// ── Read-only field component ──────────────────────────────────────────────────
+function ReadOnlyField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <Field>
+      <div className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-700 text-sm">
+        {value || "—"}
+      </div>
+      <FieldDescription>{label}</FieldDescription>
+    </Field>
+  );
+}
+
 export function EditRecordsSheet({
   open,
   onOpenChange,
@@ -106,7 +126,26 @@ export function EditRecordsSheet({
 }: EditRecordsSheetProps) {
   const { user } = useAuth();
   const isMobile = useIsMobile();
-  const [fields, setFields] = useState(patient);
+  const [fields, setFields] = useState<
+    Patient & {
+      patientDiagnosis?: any[];
+      familyHistory?: any[];
+      symptoms?: string;
+      bloodPressure?: string;
+      heartRate?: string;
+      respiratoryRate?: string;
+      temperature?: string;
+      oxygenSaturation?: string;
+      weight?: string;
+      height?: string;
+      medicalCare?: boolean;
+      drugAllergy?: boolean;
+      foodAllergy?: boolean;
+      isTBPositive?: boolean;
+      hasClinician?: boolean;
+      diet?: boolean;
+    }
+  >(patient);
   const [openD, setOpenDate] = React.useState(false);
   const [date, setDate] = React.useState<Date | undefined>(undefined);
   const [month, setMonth] = React.useState<Date | undefined>(date);
@@ -118,7 +157,7 @@ export function EditRecordsSheet({
     }
   }, [patient]);
 
-  const handleChange = (key: keyof Patient, value: string | boolean) => {
+  const handleChange = (key: string, value: string | boolean) => {
     setFields((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -148,19 +187,21 @@ export function EditRecordsSheet({
     }));
   };
 
-  // const handleRemoveDiagnosis = (index: number) => {
-  //   setFields((prev) => ({
-  //     ...prev,
-  //     patientDiagnosis: prev.patientDiagnosis.filter((_, i) => i !== index),
-  //   }));
-  // };
+  const handleRemoveDiagnosis = (index: number) => {
+    setFields((prev) => ({
+      ...prev,
+      patientDiagnosis: (prev.patientDiagnosis || []).filter(
+        (_, i) => i !== index,
+      ),
+    }));
+  };
 
-  // const handleRemoveHistory = (index: number) => {
-  //   setFields((prev) => ({
-  //     ...prev,
-  //     familyHistory: prev.familyHistory.filter((_, i) => i !== index),
-  //   }));
-  // };
+  const handleRemoveHistory = (index: number) => {
+    setFields((prev) => ({
+      ...prev,
+      familyHistory: (prev.familyHistory || []).filter((_, i) => i !== index),
+    }));
+  };
 
   const handleDiagnosisChange = (
     index: number,
@@ -168,7 +209,7 @@ export function EditRecordsSheet({
     value: string,
   ) => {
     setFields((prev) => {
-      const updated = [...prev.patientDiagnosis];
+      const updated = [...(prev.patientDiagnosis || [])];
       updated[index][key] = value;
       return { ...prev, patientDiagnosis: updated };
     });
@@ -180,8 +221,8 @@ export function EditRecordsSheet({
     value: string | boolean,
   ) => {
     setFields((prev) => {
-      const updated = [...prev.familyHistory];
-      if (key == "goodHealth" || key == "isAlive") {
+      const updated = [...(prev.familyHistory || [])];
+      if (key === "goodHealth" || key === "isAlive") {
         updated[index][key] = value as boolean;
       } else {
         updated[index][key] = value as string;
@@ -195,24 +236,37 @@ export function EditRecordsSheet({
       toast.error("Invalid patient record.");
       return;
     }
-    const patientRef = ref(db, `patients/${fields.id}`);
-    const patientHistoryRef = ref(db, `patients/${fields.id}/medicalHistory`);
-    const snapshot = await get(patientRef);
-    const currentPatient = snapshot.val();
-    const { medicalHistory, ...oldHistory } = currentPatient || {};
-    await update(patientRef, {
-      ...fields,
-      address:
-        fields.address1 + fields.address2 + fields.city + fields.province,
-      updatedBy: user?.uid || "",
-      updatedAt: Date.now(),
-    });
-    await push(patientHistoryRef, {
-      ...oldHistory,
-      savedAt: Date.now(),
-    });
-    toast.success("Patient record updated successfully.");
-    onOpenChange(false);
+
+    try {
+      const pendingRef = ref(db, "pending/updates");
+      const newPending = push(pendingRef);
+      await set(newPending, {
+        ...fields,
+        address:
+          (fields.address1 || "") +
+          (fields.address2 || "") +
+          (fields.city || "") +
+          (fields.province || ""),
+        patientId: fields.id,
+        recordId: fields.recordId,
+        status: "pending",
+        submittedBy: user?.uid || "",
+        submittedAt: Date.now(),
+      });
+
+      const logsRef = ref(db, "logs/");
+      const newLog = push(logsRef);
+      await set(newLog, {
+        medicalRecordLog: `Patient record update submitted for approval by ${user?.firstName} ${user?.lastName} for patient ${fields.firstName} ${fields.lastName}`,
+        logTime: new Date().toLocaleString(),
+      });
+
+      toast.success("Update submitted for approval.");
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error submitting update:", error);
+      toast.error("Failed to submit update. Please try again.");
+    }
   };
 
   // ── Diagnosis section ──────────────────────────────────────────────────────
@@ -234,7 +288,7 @@ export function EditRecordsSheet({
       </div>
 
       <div className="space-y-3">
-        {/* {fields.patientDiagnosis.map((d, index) => (
+        {(fields.patientDiagnosis || []).map((d, index) => (
           <div
             key={index}
             className={`p-4 border border-gray-200 rounded-xl bg-gray-50 ${
@@ -286,7 +340,7 @@ export function EditRecordsSheet({
                 className="w-full"
               />
             </div>
-            {fields.patientDiagnosis.length > 1 && (
+            {(fields.patientDiagnosis || []).length > 1 && (
               <div className="flex items-center">
                 <Button
                   type="button"
@@ -300,7 +354,7 @@ export function EditRecordsSheet({
               </div>
             )}
           </div>
-        ))} */}
+        ))}
       </div>
     </div>
   );
@@ -328,7 +382,7 @@ export function EditRecordsSheet({
 
       {isMobile ? (
         <div className="space-y-4">
-          {/* {fields.familyHistory.map((h, index) => (
+          {(fields.familyHistory || []).map((h, index) => (
             <Card key={index} className="p-4 space-y-4 border border-gray-200">
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">
@@ -391,7 +445,7 @@ export function EditRecordsSheet({
                   />
                 </div>
               </div>
-              {fields.familyHistory.length > 1 && (
+              {(fields.familyHistory || []).length > 1 && (
                 <Button
                   type="button"
                   size="sm"
@@ -403,7 +457,7 @@ export function EditRecordsSheet({
                 </Button>
               )}
             </Card>
-          ))} */}
+          ))}
         </div>
       ) : (
         <>
@@ -425,8 +479,8 @@ export function EditRecordsSheet({
             </div>
           </div>
 
-          {/* <div className="divide-y border border-gray-200 rounded-xl overflow-hidden">
-            {fields.familyHistory.map((h, index) => (
+          <div className="divide-y border border-gray-200 rounded-xl overflow-hidden">
+            {(fields.familyHistory || []).map((h, index) => (
               <div
                 key={index}
                 className="grid grid-cols-[140px_80px_1fr_120px_80px_100px] items-center gap-3 p-3 hover:bg-gray-50 transition-colors"
@@ -471,7 +525,7 @@ export function EditRecordsSheet({
                   />
                 </div>
                 <div className="flex justify-end">
-                  {fields.familyHistory.length > 1 && (
+                  {(fields.familyHistory || []).length > 1 && (
                     <Button
                       type="button"
                       variant="destructive"
@@ -485,7 +539,7 @@ export function EditRecordsSheet({
                 </div>
               </div>
             ))}
-          </div> */}
+          </div>
         </>
       )}
     </div>
@@ -531,7 +585,10 @@ export function EditRecordsSheet({
               Edit Medical Report
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Update patient information, vitals, and medical history
+              Update patient vitals, medical history, and other editable fields
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Basic patient information (Name, Gender, Age, DOB) is read-only
             </p>
             <div className="mt-3 h-1 w-16 bg-[#00c4b4] rounded-full mx-auto" />
           </div>
@@ -541,136 +598,34 @@ export function EditRecordsSheet({
           <div className="px-4 md:px-8 lg:px-12 py-4">
             <Card className="p-4 md:p-8 rounded-2xl border border-gray-100 shadow-sm">
               <div className="max-w-5xl mx-auto space-y-10">
-                {/* ── PATIENT INFORMATION ── */}
+                {/* ── PATIENT INFORMATION ── READ ONLY ── */}
                 <div className="space-y-4">
                   <SectionHeader
                     icon={<User className="w-4 h-4 text-[#00a896]" />}
                     title="Patient Information"
-                    description="Basic demographic details"
+                    description="Basic demographic details (read-only)"
                   />
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Field>
-                      <Input
-                        value={fields.firstName}
-                        onChange={(e) =>
-                          handleChange("firstName", e.target.value)
-                        }
-                        placeholder="Enter first name"
-                      />
-                      <FieldDescription>First Name</FieldDescription>
-                    </Field>
-                    <Field>
-                      <Input
-                        value={fields.lastName}
-                        onChange={(e) =>
-                          handleChange("lastName", e.target.value)
-                        }
-                        placeholder="Enter last name"
-                      />
-                      <FieldDescription>Last Name</FieldDescription>
-                    </Field>
+                    <ReadOnlyField
+                      label="First Name"
+                      value={fields.firstName}
+                    />
+                    <ReadOnlyField label="Last Name" value={fields.lastName} />
                   </div>
 
-                  <Field>
-                    <InputGroup>
-                      <InputGroupInput
-                        id="date-required"
-                        value={value}
-                        placeholder={fields.birthdate}
-                        onChange={(e) => {
-                          handleChange("birthdate", e.target.value);
-                          const d = new Date(e.target.value);
-                          setValue(e.target.value);
-                          if (isValidDate(d)) {
-                            setDate(d);
-                            setMonth(d);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "ArrowDown") {
-                            e.preventDefault();
-                            setOpenDate(true);
-                          }
-                        }}
-                      />
-                      <InputGroupAddon align="inline-end">
-                        <Popover open={openD} onOpenChange={setOpenDate}>
-                          <PopoverTrigger asChild>
-                            <InputGroupButton
-                              id="date-picker"
-                              variant="ghost"
-                              size="icon-xs"
-                              aria-label="Select date"
-                              className="!bg-[#00a896] text-white !hover:bg-[#028090] border-none"
-                            >
-                              <CalendarIcon />
-                              <span className="sr-only">Select date</span>
-                            </InputGroupButton>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-auto overflow-hidden p-0"
-                            align="end"
-                            alignOffset={-8}
-                            sideOffset={10}
-                          >
-                            <Calendar
-                              mode="single"
-                              selected={date}
-                              month={month}
-                              onMonthChange={setMonth}
-                              onSelect={(d) => {
-                                setDate(d);
-                                setValue(formatDate(d));
-                                setOpenDate(false);
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </InputGroupAddon>
-                    </InputGroup>
-                    <FieldDescription>Date of Birth</FieldDescription>
-                  </Field>
+                  <ReadOnlyField
+                    label="Date of Birth"
+                    value={fields.birthdate}
+                  />
 
                   <div className="grid grid-cols-2 gap-4">
-                    <Field>
-                      <Input
-                        value={fields.age}
-                        onChange={(e) => handleChange("age", e.target.value)}
-                        placeholder="Enter age"
-                        type="number"
-                      />
-                      <FieldDescription>Age</FieldDescription>
-                    </Field>
-                    <Field>
-                      <Select
-                        value={fields.gender}
-                        onValueChange={(v) => handleChange("gender", v)}
-                      >
-                        <SelectTrigger className="!bg-[#00a896] w-full border-gray-300 !text-white">
-                          <SelectValue placeholder="Select Gender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            className="!bg-white !text-blue-500"
-                            value="MALE"
-                          >
-                            Male
-                          </SelectItem>
-                          <SelectItem
-                            className="!bg-white !text-red-500"
-                            value="FEMALE"
-                          >
-                            Female
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FieldDescription>Gender</FieldDescription>
-                    </Field>
+                    <ReadOnlyField label="Age" value={fields.age} />
+                    <ReadOnlyField label="Gender" value={fields.gender} />
                   </div>
                 </div>
 
-                {/* ── ADDRESS ── */}
+                {/* ── ADDRESS ── EDITABLE ── */}
                 <div className="space-y-4">
                   <SectionHeader
                     icon={<MapPin className="w-4 h-4 text-[#00a896]" />}
@@ -678,7 +633,7 @@ export function EditRecordsSheet({
                   />
                   <Field>
                     <Input
-                      value={fields.address1}
+                      value={fields.address1 || ""}
                       onChange={(e) => handleChange("address1", e.target.value)}
                       placeholder="Street address, building, unit..."
                     />
@@ -686,7 +641,7 @@ export function EditRecordsSheet({
                   </Field>
                   <Field>
                     <Input
-                      value={fields.address2}
+                      value={fields.address2 || ""}
                       onChange={(e) => handleChange("address2", e.target.value)}
                       placeholder="Apartment, suite, etc. (optional)"
                     />
@@ -695,7 +650,7 @@ export function EditRecordsSheet({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field>
                       <Input
-                        value={fields.city}
+                        value={fields.city || ""}
                         onChange={(e) => handleChange("city", e.target.value)}
                         placeholder="City"
                       />
@@ -703,7 +658,7 @@ export function EditRecordsSheet({
                     </Field>
                     <Field>
                       <Input
-                        value={fields.province}
+                        value={fields.province || ""}
                         onChange={(e) =>
                           handleChange("province", e.target.value)
                         }
@@ -714,7 +669,7 @@ export function EditRecordsSheet({
                   </div>
                 </div>
 
-                {/* ── CONTACT NUMBER ── */}
+                {/* ── CONTACT NUMBER ── EDITABLE ── */}
                 <div className="space-y-4">
                   <SectionHeader
                     icon={<Phone className="w-4 h-4 text-[#00a896]" />}
@@ -722,7 +677,7 @@ export function EditRecordsSheet({
                   />
                   <Field>
                     <Input
-                      value={fields.telephone}
+                      value={fields.telephone || ""}
                       onChange={(e) =>
                         handleChange("telephone", e.target.value)
                       }
@@ -732,7 +687,7 @@ export function EditRecordsSheet({
                   </Field>
                 </div>
 
-                {/* ── VITAL STATISTICS ── */}
+                {/* ── VITAL STATISTICS ── EDITABLE ── */}
                 <div className="space-y-4">
                   <SectionHeader
                     icon={<Activity className="w-4 h-4 text-[#00a896]" />}
@@ -747,7 +702,7 @@ export function EditRecordsSheet({
                       <div className="relative">
                         <Activity className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#00a896]" />
                         <Input
-                          value={fields.bloodPressure}
+                          value={fields.bloodPressure || ""}
                           onChange={(e) =>
                             handleChange("bloodPressure", e.target.value)
                           }
@@ -762,7 +717,7 @@ export function EditRecordsSheet({
                       <div className="relative">
                         <Heart className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#00a896]" />
                         <Input
-                          value={fields.heartRate}
+                          value={fields.heartRate || ""}
                           onChange={(e) =>
                             handleChange("heartRate", e.target.value)
                           }
@@ -777,7 +732,7 @@ export function EditRecordsSheet({
                       <div className="relative">
                         <Wind className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#00a896]" />
                         <Input
-                          value={fields.respiratoryRate}
+                          value={fields.respiratoryRate || ""}
                           onChange={(e) =>
                             handleChange("respiratoryRate", e.target.value)
                           }
@@ -792,7 +747,7 @@ export function EditRecordsSheet({
                       <div className="relative">
                         <Droplets className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#00a896]" />
                         <Input
-                          value={fields.oxygenSaturation}
+                          value={fields.oxygenSaturation || ""}
                           onChange={(e) =>
                             handleChange("oxygenSaturation", e.target.value)
                           }
@@ -811,7 +766,7 @@ export function EditRecordsSheet({
                       <div className="relative">
                         <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#00a896]" />
                         <Input
-                          value={fields.height}
+                          value={fields.height || ""}
                           onChange={(e) =>
                             handleChange("height", e.target.value)
                           }
@@ -826,7 +781,7 @@ export function EditRecordsSheet({
                       <div className="relative">
                         <Weight className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#00a896]" />
                         <Input
-                          value={fields.weight}
+                          value={fields.weight || ""}
                           onChange={(e) =>
                             handleChange("weight", e.target.value)
                           }
@@ -841,7 +796,7 @@ export function EditRecordsSheet({
                       <div className="relative">
                         <Thermometer className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#00a896]" />
                         <Input
-                          value={fields.temperature}
+                          value={fields.temperature || ""}
                           onChange={(e) =>
                             handleChange("temperature", e.target.value)
                           }
@@ -854,7 +809,7 @@ export function EditRecordsSheet({
                   </div>
                 </div>
 
-                {/* ── HEALTH HISTORY ── */}
+                {/* ── HEALTH HISTORY ── EDITABLE ── */}
                 <div className="space-y-4">
                   <SectionHeader
                     icon={<ClipboardList className="w-4 h-4 text-[#00a896]" />}
@@ -907,7 +862,7 @@ export function EditRecordsSheet({
                           className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
                           checked={item.checked as boolean}
                           onCheckedChange={(checked) =>
-                            handleChange(item.key as keyof Patient, checked)
+                            handleChange(item.key, checked === true)
                           }
                         />
                       </div>
@@ -915,7 +870,7 @@ export function EditRecordsSheet({
                   </div>
                 </div>
 
-                {/* ── SYMPTOMS ── */}
+                {/* ── SYMPTOMS ── EDITABLE ── */}
                 <div className="space-y-4">
                   <SectionHeader
                     icon={<Stethoscope className="w-4 h-4 text-[#00a896]" />}
@@ -923,7 +878,7 @@ export function EditRecordsSheet({
                   />
                   <Field>
                     <Input
-                      value={fields.symptoms}
+                      value={fields.symptoms || ""}
                       onChange={(e) => handleChange("symptoms", e.target.value)}
                       placeholder="e.g. fever, cough, headache"
                     />
@@ -933,10 +888,10 @@ export function EditRecordsSheet({
                   </Field>
                 </div>
 
-                {/* ── DIAGNOSIS ── */}
+                {/* ── DIAGNOSIS ── EDITABLE ── */}
                 <DiagnosisSection />
 
-                {/* ── FAMILY HISTORY ── */}
+                {/* ── FAMILY HISTORY ── EDITABLE ── */}
                 <FamilyHistorySection />
 
                 {/* ── SAVE BUTTON ── */}

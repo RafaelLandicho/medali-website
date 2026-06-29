@@ -25,6 +25,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import linkPic from "./images/link.png";
 import { useNavigate } from "react-router-dom";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import {
   Dialog,
   DialogContent,
@@ -88,32 +90,25 @@ export function ViewUsers() {
   const [filter, setFilter] = React.useState<keyof User>("firstName");
   const [open, setOpen] = React.useState(false);
 
-  // Delete confirmation state
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
 
-  // Check if current user is admin
   const isAdmin = user?.type?.toLowerCase() === "admin";
 
   React.useEffect(() => {
     if (!user) return;
-    console.log(user);
     const usersRef = ref(db, "users");
     const unsubscribe = onValue(usersRef, (snapshot) => {
       const data = snapshot.val();
       const users: User[] = data
-        ? Object.entries(data).map(([id, value]) => ({
-            id,
-            ...(value as any),
-          }))
+        ? Object.entries(data).map(([id, value]) => ({ id, ...(value as any) }))
         : [];
       const currentUser = users.find((u) => u.id === user.uid) || null;
       setCurrentUserDB(currentUser);
       setData(users.filter((u) => u.id !== user.uid));
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, [user]);
 
@@ -124,7 +119,6 @@ export function ViewUsers() {
 
   const filteredUsers = React.useMemo(() => {
     const term = search.toLowerCase();
-
     return data.filter((u) => {
       const value = (u[filter] ?? "").toString().toLowerCase();
       return value.includes(term);
@@ -138,68 +132,45 @@ export function ViewUsers() {
     (u) => u.type?.toLowerCase() === "secretary",
   );
 
-  // Delete user function
   const handleDeleteUser = async () => {
     if (!userToDelete || !isAdmin) return;
-
     setIsDeleting(true);
     try {
       const userRef = ref(db, `users/${userToDelete.id}`);
-
-      // Remove user from all references (doctors' secretaries lists, secretaries' doctors lists, etc.)
       const updates: Record<string, any> = {};
 
-      // Remove from doctors' secretaries lists if this user is a secretary
       if (userToDelete.type?.toLowerCase() === "secretary") {
         for (const doctor of doctors) {
           if (doctor.secretaries?.includes(userToDelete.id)) {
-            const newSecretaries = doctor.secretaries.filter(
-              (id) => id !== userToDelete.id,
-            );
-            updates[`users/${doctor.id}/secretaries`] = newSecretaries;
+            updates[`users/${doctor.id}/secretaries`] =
+              doctor.secretaries.filter((id) => id !== userToDelete.id);
           }
         }
       }
 
-      // Remove from secretaries' doctors lists if this user is a doctor
       if (userToDelete.type?.toLowerCase() === "doctor") {
         for (const secretary of secretaries) {
           if (secretary.doctors?.includes(userToDelete.id)) {
-            const newDoctors = secretary.doctors.filter(
+            updates[`users/${secretary.id}/doctors`] = secretary.doctors.filter(
               (id) => id !== userToDelete.id,
             );
-            updates[`users/${secretary.id}/doctors`] = newDoctors;
           }
         }
       }
 
-      // Remove from requestedBy and requestedTo lists
       for (const otherUser of data) {
         if (otherUser.requestedBy?.includes(userToDelete.id)) {
-          const newRequestedBy = otherUser.requestedBy.filter(
-            (id) => id !== userToDelete.id,
-          );
-          updates[`users/${otherUser.id}/requestedBy`] = newRequestedBy;
+          updates[`users/${otherUser.id}/requestedBy`] =
+            otherUser.requestedBy.filter((id) => id !== userToDelete.id);
         }
         if (otherUser.requestedTo?.includes(userToDelete.id)) {
-          const newRequestedTo = otherUser.requestedTo.filter(
-            (id) => id !== userToDelete.id,
-          );
-          updates[`users/${otherUser.id}/requestedTo`] = newRequestedTo;
+          updates[`users/${otherUser.id}/requestedTo`] =
+            otherUser.requestedTo.filter((id) => id !== userToDelete.id);
         }
       }
 
-      // Apply all updates
-      if (Object.keys(updates).length > 0) {
-        await update(ref(db), updates);
-      }
-
-      // Finally, delete the user
+      if (Object.keys(updates).length > 0) await update(ref(db), updates);
       await remove(userRef);
-
-      console.log(
-        `User ${userToDelete.firstName} ${userToDelete.lastName} deleted successfully`,
-      );
       setIsDeleteDialogOpen(false);
       setUserToDelete(null);
     } catch (error) {
@@ -212,11 +183,7 @@ export function ViewUsers() {
 
   async function addRequest(u: User): Promise<void> {
     if (!user) return;
-
     const doctorRef = ref(db, `users/${u.id}`);
-    console.log("Add doctor:", u);
-
-    console.log(doctorRef);
     const doctorSnapshot = await get(doctorRef);
     const docData = doctorSnapshot.exists() ? doctorSnapshot.val() : {};
     const requestedBy = Array.isArray(docData.requestedBy)
@@ -224,12 +191,8 @@ export function ViewUsers() {
       : Array.isArray(docData.requestedby)
         ? docData.requestedby
         : [];
-    const newRequestedBy = [...requestedBy, user.uid];
-    await update(doctorRef, {
-      requestedBy: newRequestedBy,
-    });
+    await update(doctorRef, { requestedBy: [...requestedBy, user.uid] });
 
-    console.log(user);
     const secRef = ref(db, `users/${user.uid}`);
     const secSnapshot = await get(secRef);
     const secData = secSnapshot.exists() ? secSnapshot.val() : {};
@@ -238,10 +201,7 @@ export function ViewUsers() {
       : Array.isArray(secData.requestedto)
         ? secData.requestedto
         : [];
-    const newRequestedTo = [...requestedTo, u.id];
-    await update(secRef, {
-      requestedTo: newRequestedTo,
-    });
+    await update(secRef, { requestedTo: [...requestedTo, u.id] });
   }
 
   const SectionLabel = ({ title }: { title: string }) => (
@@ -256,59 +216,46 @@ export function ViewUsers() {
 
   async function acceptRequest(u: User): Promise<void> {
     if (!user) return;
-
     const doctorRef = ref(db, `users/${user.uid}`);
-    console.log("Add doctor:", u);
-
-    console.log(doctorRef);
     const doctorSnapshot = await get(doctorRef);
     const doctorData = doctorSnapshot.exists() ? doctorSnapshot.val() : {};
-
     const requestedBy: string[] = Array.isArray(doctorData.requestedBy)
       ? doctorData.requestedBy
       : [];
-    const newRequestedBy = requestedBy.filter((uid) => uid !== u.id);
-
-    const secretaries: string[] = Array.isArray(doctorData.secretaries)
+    const secretariesList: string[] = Array.isArray(doctorData.secretaries)
       ? doctorData.secretaries
       : [];
-    const newSecretaries = [...secretaries, u.id];
-
     await update(doctorRef, {
-      requestedBy: newRequestedBy,
-      secretaries: newSecretaries,
+      requestedBy: requestedBy.filter((uid) => uid !== u.id),
+      secretaries: [...secretariesList, u.id],
     });
 
     const secRef = ref(db, `users/${u.id}`);
     const secSnapshot = await get(secRef);
     const secData = secSnapshot.exists() ? secSnapshot.val() : {};
-
     const requestedTo: string[] = Array.isArray(secData.requestedTo)
       ? secData.requestedTo
       : [];
-    const newRequestedTo = requestedTo.filter((uid) => uid !== user.uid);
-
-    const doctors: string[] = Array.isArray(secData.doctors)
+    const doctorsList: string[] = Array.isArray(secData.doctors)
       ? secData.doctors
       : [];
-    const newDoctors = [...doctors, user.uid];
-
-    await update(secRef, { requestedTo: newRequestedTo, doctors: newDoctors });
-
-    console.log(`Accepted request from ${u.firstName} ${u.lastName}`);
+    await update(secRef, {
+      requestedTo: requestedTo.filter((uid) => uid !== user.uid),
+      doctors: [...doctorsList, user.uid],
+    });
   }
 
   async function cancelRequest(s: any) {
     if (!user) return;
-
     const doctorRef = ref(db, `users/${user.uid}`);
     const doctorSnapshot = await get(doctorRef);
     const doctorData = doctorSnapshot.exists() ? doctorSnapshot.val() : {};
     const requestedBy: string[] = Array.isArray(doctorData.requestedBy)
       ? doctorData.requestedBy
       : [];
-    const newRequestedBy = requestedBy.filter((uid) => uid !== s.id);
-    await update(doctorRef, { requestedBy: newRequestedBy });
+    await update(doctorRef, {
+      requestedBy: requestedBy.filter((uid) => uid !== s.id),
+    });
 
     const secRef = ref(db, `users/${s.id}`);
     const secSnapshot = await get(secRef);
@@ -316,9 +263,9 @@ export function ViewUsers() {
     const requestedTo: string[] = Array.isArray(secData.requestedTo)
       ? secData.requestedTo
       : [];
-    const newRequestedTo = requestedTo.filter((uid) => uid !== user.uid);
-    await update(secRef, { requestedTo: newRequestedTo });
-    console.log(`Cancelled request from ${s.firstName} ${s.lastName}`);
+    await update(secRef, {
+      requestedTo: requestedTo.filter((uid) => uid !== user.uid),
+    });
   }
 
   if (loading) return <div>Loading...</div>;
@@ -407,14 +354,12 @@ export function ViewUsers() {
             onChange={(e) => setSearch(e.target.value)}
             className="max-w-md"
           />
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="!bg-[#00a896] !text-white">
                 Filter <ChevronDown className="ml-2 w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-
             <DropdownMenuContent>
               {["firstName", "lastName", "field", "email"].map((col) => (
                 <DropdownMenuItem
@@ -433,260 +378,281 @@ export function ViewUsers() {
           </DropdownMenu>
         </div>
 
-        {/* DOCTORS LIST */}
-        <div className="space-y-6">
-          {doctorsFiltered.length > 0 && <SectionLabel title="Doctors" />}
-          {doctorsFiltered.map((u) => {
-            const alreadyLinked =
-              userIsSecretary && currentUserDB?.doctors?.includes?.(u.id);
-            const alreadyRequested =
-              userIsSecretary && currentUserDB?.requestedTo?.includes?.(u.id);
-            const sched = getEarliestSchedule(u);
-
-            return (
-              <div
-                key={u.id}
-                className="
-                      bg-white
-                      rounded-2xl
-                      shadow-md
-                      border
-                      p-6
-                      grid
-                      grid-cols-1
-                      lg:grid-cols-[320px_1fr_220px]
-                      gap-8
-                      items-center
-                      relative
-                    "
+        <div>
+          <Tabs defaultValue="login" className="w-full">
+            <TabsList className="grid grid-cols-2 w-full mb-8 bg-gray-100 rounded-xl p-1">
+              <TabsTrigger
+                value="login"
+                className="rounded-lg text-sm font-medium transition-all data-[state=active]:!bg-[#00a896] data-[state=active]:!text-white data-[state=inactive]:text-gray-500"
               >
-                {/* Delete button for admin */}
-                {isAdmin && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="absolute top-4 right-4 text-red-600 hover:text-red-700 hover:bg-red-50 !bg-white"
-                    onClick={() => {
-                      setUserToDelete(u);
-                      setIsDeleteDialogOpen(true);
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                )}
+                Doctors
+              </TabsTrigger>
+              <TabsTrigger
+                value="signup"
+                className="rounded-lg text-sm font-medium transition-all data-[state=active]:!bg-[#00a896] data-[state=active]:!text-white data-[state=inactive]:text-gray-500"
+              >
+                Secretaries
+              </TabsTrigger>
+            </TabsList>
 
-                {/* LEFT COLUMN */}
-                <div className="flex gap-4 items-center">
-                  <Avatar className="w-24 h-24 shrink-0">
-                    <AvatarImage src={getAvatar(u.id, u.type)} />
-                    <AvatarFallback>DR</AvatarFallback>
-                  </Avatar>
+            {/* ── DOCTORS TAB ── */}
+            <TabsContent value="login">
+              <div className="mb-6">
+                <div className="space-y-6">
+                  {doctorsFiltered.length > 0 && (
+                    <SectionLabel title="Doctors" />
+                  )}
+                  {doctorsFiltered.map((u) => {
+                    const alreadyLinked =
+                      userIsSecretary &&
+                      currentUserDB?.doctors?.includes?.(u.id);
+                    const alreadyRequested =
+                      userIsSecretary &&
+                      currentUserDB?.requestedTo?.includes?.(u.id);
 
-                  <div>
-                    <h2 className="text-2xl font-semibold">
-                      Dr. {u.firstName} {u.lastName}
-                    </h2>
+                    // Fee visibility: only show to linked users, admins, or the doctor themselves
+                    const canSeeFee = isAdmin || alreadyLinked;
 
-                    <p className="text-gray-500">{u.field}</p>
+                    const sched = getEarliestSchedule(u);
 
-                    <p className="text-gray-500">
-                      {u.profileExperience ?? 5} yrs experience
-                    </p>
-                  </div>
-                </div>
+                    return (
+                      <div
+                        key={u.id}
+                        className="bg-white rounded-2xl shadow-md border p-6 grid grid-cols-1 lg:grid-cols-[320px_1fr_220px] gap-8 items-center relative"
+                      >
+                        {/* Delete button for admin */}
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-4 right-4 text-red-600 hover:text-red-700 hover:bg-red-50 !bg-white"
+                            onClick={() => {
+                              setUserToDelete(u);
+                              setIsDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
 
-                {/* MIDDLE COLUMN */}
-                <div className="flex items-center justify-center gap-4 h-full">
-                  <div className="bg-blue-50 p-4 rounded-xl shrink-0">📱</div>
+                        {/* LEFT COLUMN */}
+                        <div className="flex gap-4 items-center">
+                          <Avatar className="w-24 h-24 shrink-0">
+                            <AvatarImage src={getAvatar(u.id, u.type)} />
+                            <AvatarFallback>DR</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <h2 className="text-2xl font-semibold">
+                              Dr. {u.firstName} {u.lastName}
+                            </h2>
+                            <p className="text-gray-500">{u.field}</p>
+                            <p className="text-gray-500">
+                              {u.profileExperience ?? 5} yrs experience
+                            </p>
+                          </div>
+                        </div>
 
-                  <div>
-                    <p className="font-semibold text-slate-700">
-                      Earliest Available Schedule
-                    </p>
+                        {/* MIDDLE COLUMN */}
+                        <div className="flex items-center justify-center gap-4 h-full">
+                          <div className="bg-blue-50 p-4 rounded-xl shrink-0">
+                            📱
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-700">
+                              Earliest Available Schedule
+                            </p>
+                            {sched ? (
+                              <>
+                                <p className="font-semibold text-lg">
+                                  {sched.clinic}
+                                </p>
+                                <p className="text-gray-600">
+                                  {sched.day}, {sched.time}
+                                </p>
+                                {canSeeFee ? (
+                                  <p className="font-semibold mt-2">
+                                    Fee: ₱{sched.fee?.toLocaleString()}
+                                  </p>
+                                ) : (
+                                  <p className="text-sm text-gray-400 italic mt-2 flex items-center gap-1">
+                                    <span className="inline-block w-3 h-3 rounded-full bg-gray-300" />
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-gray-500">No schedule yet</p>
+                            )}
+                          </div>
+                        </div>
 
-                    {sched ? (
-                      <>
-                        <p className="font-semibold text-lg">{sched.clinic}</p>
-
-                        <p className="text-gray-600">
-                          {sched.day}, {sched.time}
-                        </p>
-
-                        <p className="font-semibold mt-2">
-                          Fee: ₱{sched.fee?.toLocaleString()}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-gray-500">No schedule yet</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* RIGHT COLUMN */}
-                <div className="flex justify-end items-center">
-                  {userIsSecretary ? (
-                    alreadyLinked ? (
-                      <div className="flex items-center gap-3">
-                        <Button
-                          className="!bg-white text-black underline"
-                          onClick={() => navigate(`/profile/${u.id}`)}
-                        >
-                          VIEW PROFILE
-                        </Button>
-
-                        <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-600 px-4 py-2 rounded-full font-semibold">
-                          <CheckCircle className="w-5 h-5" />
-                          LINKED
+                        {/* RIGHT COLUMN */}
+                        <div className="flex justify-end items-center">
+                          {userIsSecretary ? (
+                            alreadyLinked ? (
+                              <div className="flex items-center gap-3">
+                                <Button
+                                  className="!bg-white text-black underline"
+                                  onClick={() => navigate(`/profile/${u.id}`)}
+                                >
+                                  VIEW PROFILE
+                                </Button>
+                                <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-600 px-4 py-2 rounded-full font-semibold">
+                                  <CheckCircle className="w-5 h-5" />
+                                  LINKED
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-3">
+                                <Button
+                                  className="!bg-white text-black underline"
+                                  onClick={() => navigate(`/profile/${u.id}`)}
+                                >
+                                  VIEW PROFILE
+                                </Button>
+                                {alreadyRequested ? (
+                                  <div className="flex items-center gap-2 bg-yellow-500/10 text-yellow-800 px-4 py-2 rounded-full font-semibold">
+                                    <CheckCircle className="w-5 h-5" />
+                                    REQUEST SENT
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => addRequest(u)}
+                                    className="flex items-center gap-2 bg-sky-50 text-sky-600 px-4 py-2 rounded-full font-semibold border border-sky-200 hover:bg-sky-100 transition"
+                                  >
+                                    <PlusCircle className="w-5 h-5" />
+                                    Add Doctor
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          ) : (
+                            <Button
+                              className="!bg-white text-black underline"
+                              onClick={() => navigate(`/profile/${u.id}`)}
+                            >
+                              VIEW PROFILE
+                            </Button>
+                          )}
                         </div>
                       </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
+                    );
+                  })}
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* ── SECRETARIES TAB ── */}
+            <TabsContent value="signup">
+              {secretariesFiltered.length > 0 && (
+                <SectionLabel title="Secretaries" />
+              )}
+              <div className="space-y-6">
+                {secretariesFiltered.map((s) => {
+                  const alreadyLinked =
+                    userIsDoctor &&
+                    currentUserDB?.secretaries?.includes?.(s.id);
+                  const hasRequest =
+                    userIsDoctor &&
+                    currentUserDB?.requestedBy?.includes?.(s.id);
+
+                  return (
+                    <div
+                      key={s.id}
+                      className="bg-white rounded-2xl shadow-md p-6 flex flex-col lg:flex-row justify-between gap-6 border relative"
+                    >
+                      {/* Delete button for admin */}
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="absolute top-4 right-4 text-red-600 hover:text-red-700 hover:bg-red-50 !bg-white"
+                          onClick={() => {
+                            setUserToDelete(s);
+                            setIsDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+
+                      {/* LEFT */}
+                      <div className="flex gap-4 min-w-[280px]">
+                        <Avatar className="w-20 h-20">
+                          <AvatarImage src={getAvatar(s.id, s.type)} />
+                          <AvatarFallback>SC</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <h2 className="text-2xl font-semibold">
+                            {s.firstName} {s.lastName}
+                          </h2>
+                          <p className="text-gray-500">Secretary</p>
+                          <p className="text-gray-500">{s.email}</p>
+                        </div>
+                      </div>
+
+                      {/* MIDDLE */}
+                      <div className="flex items-center gap-4 min-w-[260px]">
+                        <div className="bg-blue-50 p-4 rounded-xl">📩</div>
+                        <div>
+                          <p className="font-semibold text-gray-700">
+                            Contact Info
+                          </p>
+                          {/* Only show email to linked doctors or admins */}
+                          {isAdmin || alreadyLinked ? (
+                            <p className="text-gray-600">{s.email}</p>
+                          ) : (
+                            <p className="text-sm text-gray-400 italic flex items-center gap-1">
+                              <span className="inline-block w-3 h-3 rounded-full bg-gray-300" />
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* RIGHT */}
+                      <div className="flex flex-col justify-center items-end gap-4 min-w-[200px]">
                         <Button
                           className="!bg-white text-black underline"
-                          onClick={() => navigate(`/profile/${u.id}`)}
+                          onClick={() => navigate(`/profile/${s.id}`)}
                         >
                           VIEW PROFILE
                         </Button>
-
-                        {alreadyRequested ? (
-                          <div className="flex items-center gap-2 bg-yellow-500/10 text-yellow-800 px-4 py-2 rounded-full font-semibold">
-                            <CheckCircle className="w-5 h-5" />
-                            REQUEST SENT
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => addRequest(u)}
-                            className="
-                                      flex items-center gap-2
-                                      bg-sky-50
-                                      text-sky-600
-                                      px-4 py-2
-                                      rounded-full
-                                      font-semibold
-                                      border border-sky-200
-                                      hover:bg-sky-100
-                                      transition
-                                    "
-                          >
-                            <PlusCircle className="w-5 h-5" />
-                            Add Doctor
-                          </button>
+                        {userIsDoctor && (
+                          <>
+                            {alreadyLinked ? (
+                              <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-600 px-4 py-2 rounded-full font-semibold">
+                                <CheckCircle className="w-5 h-5" />
+                                LINKED
+                              </div>
+                            ) : hasRequest ? (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => acceptRequest(s)}
+                                  className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-full font-semibold border border-emerald-200 hover:bg-emerald-100 transition"
+                                >
+                                  <CheckCircle className="w-5 h-5" />
+                                  Accept
+                                </button>
+                                <button
+                                  onClick={() => cancelRequest(s)}
+                                  className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-full font-semibold border border-red-200 hover:bg-red-100 transition"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 bg-gray-100 text-gray-500 px-4 py-2 rounded-full font-semibold">
+                                Not Linked
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
-                    )
-                  ) : (
-                    <Button
-                      className="!bg-white text-black underline"
-                      onClick={() => navigate(`/profile/${u.id}`)}
-                    >
-                      VIEW PROFILE
-                    </Button>
-                  )}
-                </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
-
-        {secretariesFiltered.length > 0 && <SectionLabel title="Secretaries" />}
-
-        <div className="space-y-6">
-          {secretariesFiltered.map((s) => {
-            const alreadyLinked =
-              userIsDoctor && currentUserDB?.secretaries?.includes?.(s.id);
-            const hasRequest =
-              userIsDoctor && currentUserDB?.requestedBy?.includes?.(s.id);
-
-            return (
-              <div
-                key={s.id}
-                className="bg-white rounded-2xl shadow-md p-6 flex flex-col lg:flex-row justify-between gap-6 border relative"
-              >
-                {/* Delete button for admin */}
-                {isAdmin && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="absolute top-4 right-4 text-red-600 hover:text-red-700 hover:bg-red-50 !bg-white"
-                    onClick={() => {
-                      setUserToDelete(s);
-                      setIsDeleteDialogOpen(true);
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                )}
-
-                {/* LEFT */}
-                <div className="flex gap-4 min-w-[280px]">
-                  <Avatar className="w-20 h-20">
-                    <AvatarImage src={getAvatar(s.id, s.type)} />
-                    <AvatarFallback>SC</AvatarFallback>
-                  </Avatar>
-
-                  <div>
-                    <h2 className="text-2xl font-semibold">
-                      {s.firstName} {s.lastName}
-                    </h2>
-                    <p className="text-gray-500">Secretary</p>
-                    <p className="text-gray-500">{s.email}</p>
-                  </div>
-                </div>
-
-                {/* MIDDLE */}
-                <div className="flex items-center gap-4 min-w-[260px]">
-                  <div className="bg-blue-50 p-4 rounded-xl">📩</div>
-
-                  <div>
-                    <p className="font-semibold text-gray-700">Contact Info</p>
-                    <p className="text-gray-600">{s.email}</p>
-                  </div>
-                </div>
-
-                {/* RIGHT */}
-                <div className="flex flex-col justify-center items-end gap-4 min-w-[200px]">
-                  <Button
-                    className="!bg-white text-black underline"
-                    onClick={() => navigate(`/profile/${s.id}`)}
-                  >
-                    VIEW PROFILE
-                  </Button>
-
-                  {userIsDoctor && (
-                    <>
-                      {alreadyLinked ? (
-                        <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-600 px-4 py-2 rounded-full font-semibold">
-                          <CheckCircle className="w-5 h-5" />
-                          LINKED
-                        </div>
-                      ) : hasRequest ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => acceptRequest(s)}
-                            className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-full font-semibold border border-emerald-200 hover:bg-emerald-100 transition"
-                          >
-                            <CheckCircle className="w-5 h-5" />
-                            Accept
-                          </button>
-
-                          <button
-                            onClick={() => cancelRequest(s)}
-                            className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-full font-semibold border border-red-200 hover:bg-red-100 transition"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 bg-gray-100 text-gray-500 px-4 py-2 rounded-full font-semibold">
-                          Not Linked
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

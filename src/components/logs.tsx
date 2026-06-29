@@ -317,7 +317,7 @@ export function ViewLogs() {
               Monitor and track all system activities
             </p>
           </div>
-          <div className="flex gap-2">
+          {/* <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={() => window.location.reload()}
@@ -334,7 +334,7 @@ export function ViewLogs() {
               <IconDownload className="w-4 h-4" />
               Export CSV
             </Button>
-          </div>
+          </div> */}
         </div>
 
         {/* Filters Card */}

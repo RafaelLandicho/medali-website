@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "./ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,10 +23,11 @@ import {
   MapPin,
   Phone,
   ClipboardList,
-  Users,
   Stethoscope,
   ShieldCheck,
   Pill,
+  Users,
+  ChevronDown,
 } from "lucide-react";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import {
@@ -47,6 +48,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { db } from "@/firebaseConfig";
 import { ref, set, push, onValue, get } from "firebase/database";
@@ -55,19 +61,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import Autocomplete from "./ui/autocomplete";
+import { Textarea } from "./ui/textarea";
 
 export type MedicalRecords = {
   recordId: string;
   patientDiagnosis: { diagnosis: string; severity: string; notes: string }[];
   addedBy: string;
-  familyHistory: {
-    relation: string;
-    age: string;
-    healthProblems: string;
-    goodHealth: boolean;
-    isAlive: boolean;
-  }[];
-  symptoms?: string;
   bloodPressure?: string;
   heartRate?: string;
   respiratoryRate?: string;
@@ -97,6 +96,19 @@ export type Patient = {
   province: string;
   telephone: string;
   addedBy: string;
+  medicalCare?: boolean;
+  drugAllergy?: boolean;
+  foodAllergy?: boolean;
+  isTBPositive?: boolean;
+  hasClinician?: boolean;
+  diet?: boolean;
+  familyHistory?: {
+    relation: string;
+    age: string;
+    healthProblems: string;
+    goodHealth: boolean;
+    isAlive: boolean;
+  }[];
   records?: { [key: string]: MedicalRecords };
 };
 
@@ -118,6 +130,47 @@ function isValidDate(date: Date | undefined) {
   return !isNaN(date.getTime());
 }
 
+// ── Reusable collapsible section header ──────────────────────────────────────
+function SectionTrigger({
+  icon,
+  title,
+  subtitle,
+  open,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  open: boolean;
+}) {
+  return (
+    <CollapsibleTrigger asChild>
+      <button
+        type="button"
+        className="w-full flex items-center justify-between group rounded-xl px-4 py-3 !text-[#00a896] hover:bg-[#028090] transition-colors !bg-white [&_svg]:text-white"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg !bg-[#00a896]/20 flex items-center justify-center flex-shrink-0">
+            {icon}
+          </div>
+          <div className="text-left">
+            <p className="text-lg md:text-xl font-semibold text-[#00a896]">
+              {title}
+            </p>
+            {subtitle && (
+              <p className="text-sm !text-[#00a896] mt-0.5">{subtitle}</p>
+            )}
+          </div>
+        </div>
+        <ChevronDown
+          className={`w-4 h-4 !text-[#00a896] transition-transform duration-200 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+    </CollapsibleTrigger>
+  );
+}
+// ─── Main component ───────────────────────────────────────────────────────────
 export function AddConsultationRecords({
   patient: patientProp,
 }: AddConsultationRecordsProps) {
@@ -146,7 +199,13 @@ export function AddConsultationRecords({
     );
   }
 
-  const [open, setOpen] = React.useState(false);
+  // ── Collapsible open states ──
+  const [openPatientInfo, setOpenPatientInfo] = useState(false);
+  const [openAddress, setOpenAddress] = useState(false);
+  const [openHealthHistory, setOpenHealthHistory] = useState(false);
+  const [openFamilyHistory, setOpenFamilyHistory] = useState(false);
+
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
   const [date, setDate] = React.useState<Date | undefined>(undefined);
   const [month, setMonth] = React.useState<Date | undefined>(date);
   const [value, setValue] = React.useState(formatDate(date));
@@ -160,12 +219,12 @@ export function AddConsultationRecords({
     patientOxygenSaturation: "",
     patientHeight: "",
     patientWeight: "",
-    patientisMedicalCare: false,
-    patientDrugAllergy: false,
-    patientFoodAllergy: false,
-    patientTBPositive: false,
-    patientHasClinician: false,
-    patientDiet: false,
+    patientisMedicalCare: patient.medicalCare ?? false,
+    patientDrugAllergy: patient.drugAllergy ?? false,
+    patientFoodAllergy: patient.foodAllergy ?? false,
+    patientTBPositive: patient.isTBPositive ?? false,
+    patientHasClinician: patient.hasClinician ?? false,
+    patientDiet: patient.diet ?? false,
   };
 
   const [fields, setFields] = useState(initialState);
@@ -173,20 +232,24 @@ export function AddConsultationRecords({
   const [patientDiagnosis, setDiagnosis] = useState([
     { diagnosis: "", severity: "", notes: "" },
   ]);
-  const [familyHistory, setFamilyHistory] = useState([
-    {
-      relation: "",
-      age: "",
-      healthProblems: "",
-      goodHealth: true,
-      isAlive: true,
-    },
-  ]);
   const [linkedUsers, setLinkedUsers] = React.useState<any[]>([]);
   const [selectedLinkedUser, setSelectedLinkedUser] = React.useState("");
   const [includePrescription, setIncludePrescription] = useState(false);
 
-  // ── PRESCRIPTION STATE ──
+  const [familyHistory, setFamilyHistory] = useState(
+    patient.familyHistory && patient.familyHistory.length > 0
+      ? patient.familyHistory
+      : [
+          {
+            relation: "",
+            age: "",
+            healthProblems: "",
+            goodHealth: true,
+            isAlive: true,
+          },
+        ],
+  );
+
   const [drugs, setDrugs] = useState([
     { medicine: "", unit: "", dosage: "", purpose: "", frequency: "" },
   ]);
@@ -235,6 +298,19 @@ export function AddConsultationRecords({
       { diagnosis: "", severity: "", notes: "" },
     ]);
 
+  const handleRemoveDiagnosis = (index: number) =>
+    setDiagnosis(patientDiagnosis.filter((_, i) => i !== index));
+
+  const handleDiagnosisChange = (
+    index: number,
+    key: "diagnosis" | "severity" | "notes",
+    value: string,
+  ) => {
+    const updated = [...patientDiagnosis];
+    updated[index][key] = value;
+    setDiagnosis(updated);
+  };
+
   const handleAddHistory = () =>
     setFamilyHistory([
       ...familyHistory,
@@ -247,21 +323,8 @@ export function AddConsultationRecords({
       },
     ]);
 
-  const handleRemoveDiagnosis = (index: number) =>
-    setDiagnosis(patientDiagnosis.filter((_, i) => i !== index));
-
   const handleRemoveHistory = (index: number) =>
     setFamilyHistory(familyHistory.filter((_, i) => i !== index));
-
-  const handleDiagnosisChange = (
-    index: number,
-    key: "diagnosis" | "severity" | "notes",
-    value: string,
-  ) => {
-    const updated = [...patientDiagnosis];
-    updated[index][key] = value;
-    setDiagnosis(updated);
-  };
 
   const handleHistoryChange = (
     index: number,
@@ -277,7 +340,6 @@ export function AddConsultationRecords({
     setFamilyHistory(updated);
   };
 
-  // ── DRUG HANDLERS ──
   const handleAddDrug = () =>
     setDrugs([
       ...drugs,
@@ -302,9 +364,7 @@ export function AddConsultationRecords({
       toast.error("Patient data is missing");
       return;
     }
-
     setIsLoading(true);
-
     try {
       const logsRef = ref(db, "logs/");
       const recordsRef = ref(db, `patients/${patient.id}/records`);
@@ -318,9 +378,7 @@ export function AddConsultationRecords({
       if (allPatientsSnap.exists()) {
         allPatientsSnap.forEach((patientSnap) => {
           const records = patientSnap.child("records").val();
-          if (records) {
-            totalRecords += Object.keys(records).length;
-          }
+          if (records) totalRecords += Object.keys(records).length;
         });
       }
       const recordNumber = totalRecords + 1;
@@ -344,7 +402,7 @@ export function AddConsultationRecords({
         isTBPositive: fields.patientTBPositive,
         hasClinician: fields.patientHasClinician,
         diet: fields.patientDiet,
-        familyHistory: familyHistory,
+        familyHistory,
         addedBy: user?.email,
         approvedBy: user?.firstName,
         createdBy: user?.uid,
@@ -365,10 +423,8 @@ export function AddConsultationRecords({
         });
         toast.success("Consultation record submitted for approval!");
       } else {
-        // 1. Save the record first
         await set(newRecord, recordData);
 
-        // 2. If prescription toggle is on, save it now using the recordId we just created
         if (includePrescription) {
           const prescriptionRef = ref(
             db,
@@ -383,14 +439,13 @@ export function AddConsultationRecords({
             diagnosis: patientDiagnosis,
             examination: prescriptionFields.examination,
             recommendation: prescriptionFields.recommendation,
-            drugs: drugs,
+            drugs,
             addedBy: `${user?.firstName} ${user?.lastName}`,
             field: user?.field,
             doctorId: user?.medicalId,
             createdBy: user?.uid,
             updatedAt: new Date().toLocaleString(),
           });
-
           const prescriptionLog = push(logsRef);
           await set(prescriptionLog, {
             prescriptionLog: `Prescription added by ${user?.firstName} ${user?.lastName} for record ${recordId}`,
@@ -442,163 +497,173 @@ export function AddConsultationRecords({
 
         <div className="px-0 md:px-4 lg:px-8">
           <Card className="p-6 md:p-8 rounded-2xl border border-gray-100 shadow-sm">
-            <div className="max-w-5xl mx-auto space-y-10">
-              {/* ── PATIENT INFORMATION ── */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
-                  <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-[#00a896]" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg md:text-xl font-semibold text-gray-800">
-                      Patient Information
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      Basic demographic details
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Field>
-                    <Input
-                      placeholder="Enter first name *"
-                      value={patient.firstName}
-                      onChange={(e) =>
-                        handleChange("patientFirstName", e.target.value)
-                      }
-                      required
-                    />
-                    <FieldDescription>First Name</FieldDescription>
-                  </Field>
-
-                  <Field>
-                    <Input
-                      placeholder="Enter last name *"
-                      value={patient.lastName}
-                      onChange={(e) =>
-                        handleChange("patientLastName", e.target.value)
-                      }
-                      required
-                    />
-                    <FieldDescription>Last Name</FieldDescription>
-                  </Field>
-
-                  <Field>
-                    <InputGroup>
-                      <InputGroupInput
-                        id="date-required"
-                        value={value}
-                        placeholder={patient.birthdate}
-                        onChange={(e) => {
-                          handleChange("patientBirthDate", e.target.value);
-                          const date = new Date(e.target.value);
-                          setValue(e.target.value);
-                          if (isValidDate(date)) {
-                            setDate(date);
-                            setMonth(date);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "ArrowDown") {
-                            e.preventDefault();
-                            setOpen(true);
-                          }
-                        }}
+            <div className="max-w-5xl mx-auto space-y-4">
+              {/* ── 1. PATIENT INFORMATION (collapsible) ── */}
+              <Collapsible
+                open={openPatientInfo}
+                onOpenChange={setOpenPatientInfo}
+              >
+                <SectionTrigger
+                  icon={<User className="w-4 h-4 !text-[#00a896]" />}
+                  title="Patient Information"
+                  subtitle="Basic demographic details"
+                  open={openPatientInfo}
+                />
+                <CollapsibleContent className="pt-4 space-y-4">
+                  {/* Row 1: Name + DOB */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Field>
+                      <Input
+                        placeholder="Enter first name *"
+                        value={patient.firstName}
+                        onChange={(e) =>
+                          handleChange("patientFirstName", e.target.value)
+                        }
+                        required
                       />
-                      <InputGroupAddon align="inline-end">
-                        <Popover open={open} onOpenChange={setOpen}>
-                          <PopoverTrigger asChild>
-                            <InputGroupButton
-                              id="date-picker"
-                              variant="ghost"
-                              size="icon-xs"
-                              aria-label="Select date"
-                              className="!bg-[#00a896] text-white !hover:bg-[#028090] border-none"
-                            >
-                              <CalendarIcon />
-                              <span className="sr-only">Select date</span>
-                            </InputGroupButton>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-auto overflow-hidden p-0"
-                            align="end"
-                            alignOffset={-8}
-                            sideOffset={10}
+                      <FieldDescription>First Name</FieldDescription>
+                    </Field>
+                    <Field>
+                      <Input
+                        placeholder="Enter last name *"
+                        value={patient.lastName}
+                        onChange={(e) =>
+                          handleChange("patientLastName", e.target.value)
+                        }
+                        required
+                      />
+                      <FieldDescription>Last Name</FieldDescription>
+                    </Field>
+                    <Field>
+                      <InputGroup>
+                        <InputGroupInput
+                          id="date-required"
+                          value={value}
+                          placeholder={patient.birthdate}
+                          onChange={(e) => {
+                            handleChange("patientBirthDate", e.target.value);
+                            const d = new Date(e.target.value);
+                            setValue(e.target.value);
+                            if (isValidDate(d)) {
+                              setDate(d);
+                              setMonth(d);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "ArrowDown") {
+                              e.preventDefault();
+                              setCalendarOpen(true);
+                            }
+                          }}
+                        />
+                        <InputGroupAddon align="inline-end">
+                          <Popover
+                            open={calendarOpen}
+                            onOpenChange={setCalendarOpen}
                           >
-                            <Calendar
-                              mode="single"
-                              selected={date}
-                              month={month}
-                              onMonthChange={setMonth}
-                              className="text-white"
-                              onSelect={(date) => {
-                                setDate(date);
-                                setValue(formatDate(date));
-                                setOpen(false);
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </InputGroupAddon>
-                    </InputGroup>
-                    <FieldDescription>Date of Birth</FieldDescription>
-                  </Field>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field>
-                    <Input
-                      type="number"
-                      placeholder="Enter age *"
-                      value={patient.age}
-                      onChange={(e) =>
-                        handleChange("patientAge", e.target.value)
-                      }
-                      required
-                    />
-                    <FieldDescription>Patient Age</FieldDescription>
-                  </Field>
-
-                  <Select
-                    value={patient.gender}
-                    onValueChange={(value) =>
-                      handleChange("patientGender", value)
-                    }
-                  >
-                    <SelectTrigger className="!bg-[#00a896] w-full border-gray-300 !text-white">
-                      <SelectValue placeholder="Select Gender *" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem
-                        className="!bg-white !text-blue-500"
-                        value="MALE"
-                      >
-                        Male
-                      </SelectItem>
-                      <SelectItem
-                        className="!bg-white !text-red-500"
-                        value="FEMALE"
-                      >
-                        Female
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* ── ADDRESS ── */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
-                  <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-4 h-4 text-[#00a896]" />
+                            <PopoverTrigger asChild>
+                              <InputGroupButton
+                                id="date-picker"
+                                variant="ghost"
+                                size="icon-xs"
+                                aria-label="Select date"
+                                className="!bg-[#00a896] text-white !hover:bg-[#028090] border-none"
+                              >
+                                <CalendarIcon />
+                                <span className="sr-only">Select date</span>
+                              </InputGroupButton>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              className="w-auto overflow-hidden p-0"
+                              align="end"
+                              alignOffset={-8}
+                              sideOffset={10}
+                            >
+                              <Calendar
+                                mode="single"
+                                selected={date}
+                                month={month}
+                                onMonthChange={setMonth}
+                                onSelect={(d) => {
+                                  setDate(d);
+                                  setValue(formatDate(d));
+                                  setCalendarOpen(false);
+                                }}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </InputGroupAddon>
+                      </InputGroup>
+                      <FieldDescription>Date of Birth</FieldDescription>
+                    </Field>
                   </div>
-                  <h2 className="text-lg md:text-xl font-semibold text-gray-800">
-                    Address
-                  </h2>
-                </div>
 
-                <div className="grid grid-cols-1 gap-4">
+                  {/* Row 2: Age + Gender + Contact */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Field>
+                      <Input
+                        type="number"
+                        placeholder="Enter age *"
+                        value={patient.age}
+                        onChange={(e) =>
+                          handleChange("patientAge", e.target.value)
+                        }
+                        required
+                      />
+                      <FieldDescription>Patient Age</FieldDescription>
+                    </Field>
+                    <Field>
+                      <Select
+                        value={patient.gender}
+                        onValueChange={(v) => handleChange("patientGender", v)}
+                      >
+                        <SelectTrigger className="!bg-[#00a896] w-full border-gray-300 !text-white">
+                          <SelectValue placeholder="Select Gender *" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            className="!bg-white !text-blue-500"
+                            value="MALE"
+                          >
+                            Male
+                          </SelectItem>
+                          <SelectItem
+                            className="!bg-white !text-red-500"
+                            value="FEMALE"
+                          >
+                            Female
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FieldDescription>Gender</FieldDescription>
+                    </Field>
+                    <Field>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#00a896]" />
+                        <Input
+                          type="text"
+                          placeholder="+63 912 345 6789"
+                          value={patient.telephone}
+                          onChange={(e) =>
+                            handleChange("patientTelephone", e.target.value)
+                          }
+                          className="pl-9"
+                        />
+                      </div>
+                      <FieldDescription>Contact Number</FieldDescription>
+                    </Field>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* ── 2. ADDRESS (collapsible) ── */}
+              <Collapsible open={openAddress} onOpenChange={setOpenAddress}>
+                <SectionTrigger
+                  icon={<MapPin className="w-4 h-4 !text-[#00a896]" />}
+                  title="Address"
+                  open={openAddress}
+                />
+                <CollapsibleContent className="pt-4 space-y-4">
                   <Field>
                     <Input
                       type="text"
@@ -645,32 +710,282 @@ export function AddConsultationRecords({
                       <FieldDescription>State / Province</FieldDescription>
                     </Field>
                   </div>
-                </div>
-              </div>
+                </CollapsibleContent>
+              </Collapsible>
 
-              {/* ── CONTACT NUMBER ── */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
-                  <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
-                    <Phone className="w-4 h-4 text-[#00a896]" />
+              {/* ── 3. HEALTH HISTORY (collapsible) ── */}
+              <Collapsible
+                open={openHealthHistory}
+                onOpenChange={setOpenHealthHistory}
+              >
+                <SectionTrigger
+                  icon={<ClipboardList className="w-4 h-4 !text-[#00a896]" />}
+                  title="Health History"
+                  subtitle="Check all that apply"
+                  open={openHealthHistory}
+                />
+                <CollapsibleContent className="pt-4">
+                  <div className="divide-y rounded-xl border border-gray-200 overflow-hidden">
+                    {[
+                      {
+                        key: "patientisMedicalCare",
+                        label: "Are you presently under medical care?",
+                      },
+                      {
+                        key: "patientDrugAllergy",
+                        label: "Do you have any drug allergies?",
+                      },
+                      {
+                        key: "patientFoodAllergy",
+                        label:
+                          "Do you have any food or environmental allergies?",
+                      },
+                      {
+                        key: "patientTBPositive",
+                        label:
+                          "Have you ever had tuberculosis or a positive TB test?",
+                      },
+                      {
+                        key: "patientHasClinician",
+                        label:
+                          "Have you ever been cared for by a mental health clinician?",
+                      },
+                      {
+                        key: "patientDiet",
+                        label: "Have you ever restricted your eating?",
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.key}
+                        className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                      >
+                        <FieldLabel>{item.label}</FieldLabel>
+                        <Checkbox
+                          className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
+                          checked={
+                            fields[item.key as keyof typeof fields] as boolean
+                          }
+                          onCheckedChange={(checked) =>
+                            handleChange(item.key, checked)
+                          }
+                        />
+                      </div>
+                    ))}
                   </div>
-                  <h2 className="text-lg md:text-xl font-semibold text-gray-800">
-                    Contact Number
-                  </h2>
-                </div>
-                <Field>
-                  <Input
-                    type="text"
-                    placeholder="+63 912 345 6789"
-                    value={patient.telephone}
-                    onChange={(e) =>
-                      handleChange("patientTelephone", e.target.value)
-                    }
-                  />
-                </Field>
-              </div>
+                </CollapsibleContent>
+              </Collapsible>
 
-              {/* ── VITAL STATISTICS ── */}
+              {/* ── 4. FAMILY HISTORY (collapsible) ── */}
+              <Collapsible
+                open={openFamilyHistory}
+                onOpenChange={setOpenFamilyHistory}
+              >
+                <SectionTrigger
+                  icon={<Users className="w-4 h-4 !text-[#00a896]" />}
+                  title="Family History"
+                  subtitle="Provide age and indicate relevant conditions"
+                  open={openFamilyHistory}
+                />
+                <CollapsibleContent className="pt-4">
+                  {isMobile ? (
+                    <div className="space-y-4">
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="!bg-[#00a896] text-white hover:bg-[#028090]"
+                          onClick={handleAddHistory}
+                        >
+                          + Add
+                        </Button>
+                      </div>
+                      {familyHistory.map((history, index) => (
+                        <Card
+                          key={index}
+                          className="p-4 space-y-4 border border-gray-200"
+                        >
+                          <Input
+                            placeholder="Relation"
+                            value={history.relation}
+                            onChange={(e) =>
+                              handleHistoryChange(
+                                index,
+                                "relation",
+                                e.target.value,
+                              )
+                            }
+                          />
+                          <Input
+                            placeholder="Age"
+                            value={history.age}
+                            onChange={(e) =>
+                              handleHistoryChange(index, "age", e.target.value)
+                            }
+                          />
+                          <Input
+                            placeholder="Health Problems"
+                            value={history.healthProblems}
+                            onChange={(e) =>
+                              handleHistoryChange(
+                                index,
+                                "healthProblems",
+                                e.target.value,
+                              )
+                            }
+                          />
+                          <div className="flex justify-between items-center hover:bg-gray-50 rounded-lg p-2 transition-colors">
+                            <span className="text-sm text-gray-700">
+                              In Good Health
+                            </span>
+                            <Checkbox
+                              checked={history.goodHealth}
+                              className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
+                              onCheckedChange={(checked) =>
+                                handleHistoryChange(
+                                  index,
+                                  "goodHealth",
+                                  checked === true,
+                                )
+                              }
+                            />
+                          </div>
+                          <div className="flex justify-between items-center hover:bg-gray-50 rounded-lg p-2 transition-colors">
+                            <span className="text-sm text-gray-700">Alive</span>
+                            <Checkbox
+                              checked={history.isAlive}
+                              className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
+                              onCheckedChange={(checked) =>
+                                handleHistoryChange(
+                                  index,
+                                  "isAlive",
+                                  checked === true,
+                                )
+                              }
+                            />
+                          </div>
+                          {familyHistory.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="w-full !bg-red-400 text-white"
+                              onClick={() => handleRemoveHistory(index)}
+                            >
+                              Remove
+                            </Button>
+                          )}
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-[140px_80px_1fr_120px_80px_100px] px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 rounded-lg">
+                        <span>Relation</span>
+                        <span>Age</span>
+                        <span>Health Problems</span>
+                        <span className="text-center">Good Health</span>
+                        <span className="text-center">Alive</span>
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="!bg-[#00a896] text-white hover:bg-[#028090] h-7 text-xs"
+                            onClick={handleAddHistory}
+                          >
+                            + Add
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="divide-y border border-gray-200 rounded-xl overflow-hidden mt-2">
+                        {familyHistory.map((history, index) => (
+                          <div
+                            key={index}
+                            className="grid grid-cols-[140px_80px_1fr_120px_80px_100px] items-center gap-3 p-3 hover:bg-gray-50 transition-colors"
+                          >
+                            <Input
+                              placeholder="e.g. Father"
+                              value={history.relation}
+                              onChange={(e) =>
+                                handleHistoryChange(
+                                  index,
+                                  "relation",
+                                  e.target.value,
+                                )
+                              }
+                            />
+                            <Input
+                              placeholder="Age"
+                              value={history.age}
+                              onChange={(e) =>
+                                handleHistoryChange(
+                                  index,
+                                  "age",
+                                  e.target.value,
+                                )
+                              }
+                            />
+                            <Input
+                              placeholder="Health Problems"
+                              value={history.healthProblems}
+                              onChange={(e) =>
+                                handleHistoryChange(
+                                  index,
+                                  "healthProblems",
+                                  e.target.value,
+                                )
+                              }
+                            />
+                            <div className="flex justify-center">
+                              <Checkbox
+                                checked={history.goodHealth}
+                                className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
+                                onCheckedChange={(checked) =>
+                                  handleHistoryChange(
+                                    index,
+                                    "goodHealth",
+                                    checked === true,
+                                  )
+                                }
+                              />
+                            </div>
+                            <div className="flex justify-center">
+                              <Checkbox
+                                checked={history.isAlive}
+                                className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
+                                onCheckedChange={(checked) =>
+                                  handleHistoryChange(
+                                    index,
+                                    "isAlive",
+                                    checked === true,
+                                  )
+                                }
+                              />
+                            </div>
+                            <div className="flex justify-end">
+                              {familyHistory.length > 1 && (
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  className="!bg-red-400 text-white h-8 text-xs"
+                                  onClick={() => handleRemoveHistory(index)}
+                                >
+                                  Remove
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* ── DIVIDER ── */}
+              <div className="border-t border-gray-100 pt-2" />
+
+              {/* ── 5. VITAL STATISTICS ── */}
               <div className="space-y-4">
                 <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
                   <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
@@ -704,7 +1019,6 @@ export function AddConsultationRecords({
                     </div>
                     <FieldDescription>Blood Pressure (mmHg)</FieldDescription>
                   </Field>
-
                   <Field>
                     <div className="relative">
                       <Heart className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#00a896]" />
@@ -720,7 +1034,6 @@ export function AddConsultationRecords({
                     </div>
                     <FieldDescription>Heart Rate (BPM)</FieldDescription>
                   </Field>
-
                   <Field>
                     <div className="relative">
                       <Wind className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#00a896]" />
@@ -736,7 +1049,6 @@ export function AddConsultationRecords({
                     </div>
                     <FieldDescription>Respiratory Rate</FieldDescription>
                   </Field>
-
                   <Field>
                     <div className="relative">
                       <Droplets className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#00a896]" />
@@ -775,7 +1087,6 @@ export function AddConsultationRecords({
                     </div>
                     <FieldDescription>Height (cm)</FieldDescription>
                   </Field>
-
                   <Field className="mx-auto w-full">
                     <div className="relative">
                       <Weight className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#00a896]" />
@@ -791,7 +1102,6 @@ export function AddConsultationRecords({
                     </div>
                     <FieldDescription>Weight (kg)</FieldDescription>
                   </Field>
-
                   <Field>
                     <div className="relative">
                       <Thermometer className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#00a896]" />
@@ -810,71 +1120,7 @@ export function AddConsultationRecords({
                 </div>
               </div>
 
-              {/* ── HEALTH HISTORY ── */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
-                  <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
-                    <ClipboardList className="w-4 h-4 text-[#00a896]" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg md:text-xl font-semibold text-gray-800">
-                      Health History
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      Please check if any of the following apply
-                    </p>
-                  </div>
-                </div>
-
-                <div className="divide-y rounded-xl border border-gray-200 overflow-hidden">
-                  {[
-                    {
-                      key: "patientisMedicalCare",
-                      label: "Are you presently under medical care?",
-                    },
-                    {
-                      key: "patientDrugAllergy",
-                      label: "Do you have any drug allergies?",
-                    },
-                    {
-                      key: "patientFoodAllergy",
-                      label: "Do you have any food or environmental allergies?",
-                    },
-                    {
-                      key: "patientTBPositive",
-                      label:
-                        "Have you ever had tuberculosis or a positive TB test?",
-                    },
-                    {
-                      key: "patientHasClinician",
-                      label:
-                        "Have you ever been cared for by a mental health clinician?",
-                    },
-                    {
-                      key: "patientDiet",
-                      label: "Have you ever restricted your eating?",
-                    },
-                  ].map((item) => (
-                    <div
-                      key={item.key}
-                      className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
-                    >
-                      <FieldLabel>{item.label}</FieldLabel>
-                      <Checkbox
-                        className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
-                        checked={
-                          fields[item.key as keyof typeof fields] as boolean
-                        }
-                        onCheckedChange={(checked) =>
-                          handleChange(item.key, checked)
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* ── SYMPTOMS ── */}
+              {/* ── 6. SYMPTOMS ── */}
               <div className="space-y-4">
                 <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
                   <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
@@ -896,7 +1142,7 @@ export function AddConsultationRecords({
                 </Field>
               </div>
 
-              {/* ── DIAGNOSIS ── */}
+              {/* ── 7. ILLNESS / DIAGNOSIS ── */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
@@ -916,21 +1162,18 @@ export function AddConsultationRecords({
                     + Add
                   </Button>
                 </div>
-
                 <div className="space-y-3">
                   {patientDiagnosis.map((diagnosis, index) => (
                     <div
                       key={index}
-                      className={`grid ${
-                        isMobile ? "grid-cols-1" : "md:grid-cols-4"
-                      } gap-3 p-4 border border-gray-200 rounded-xl bg-gray-50`}
+                      className={`grid ${isMobile ? "grid-cols-1" : "md:grid-cols-4"} gap-3 p-4 border border-gray-200 rounded-xl bg-gray-50`}
                     >
                       <Field>
                         <Autocomplete
                           placeholder="Diagnosis"
                           value={diagnosis.diagnosis}
-                          onChange={(value) =>
-                            handleDiagnosisChange(index, "diagnosis", value)
+                          onChange={(v) =>
+                            handleDiagnosisChange(index, "diagnosis", v)
                           }
                         />
                       </Field>
@@ -978,214 +1221,7 @@ export function AddConsultationRecords({
                 </div>
               </div>
 
-              {/* ── FAMILY HISTORY ── */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
-                  <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
-                    <Users className="w-4 h-4 text-[#00a896]" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg md:text-xl font-semibold text-gray-800">
-                      Family History
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      Provide age and indicate relevant conditions
-                    </p>
-                  </div>
-                </div>
-
-                {isMobile ? (
-                  <div className="space-y-4">
-                    <div className="flex justify-end">
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="!bg-[#00a896] text-white hover:bg-[#028090]"
-                        onClick={handleAddHistory}
-                      >
-                        + Add
-                      </Button>
-                    </div>
-                    {familyHistory.map((history, index) => (
-                      <Card
-                        key={index}
-                        className="p-4 space-y-4 border border-gray-200"
-                      >
-                        <Input
-                          placeholder="Relation"
-                          value={history.relation}
-                          onChange={(e) =>
-                            handleHistoryChange(
-                              index,
-                              "relation",
-                              e.target.value,
-                            )
-                          }
-                        />
-                        <Input
-                          placeholder="Age"
-                          value={history.age}
-                          onChange={(e) =>
-                            handleHistoryChange(index, "age", e.target.value)
-                          }
-                        />
-                        <Input
-                          placeholder="Health Problems"
-                          value={history.healthProblems}
-                          onChange={(e) =>
-                            handleHistoryChange(
-                              index,
-                              "healthProblems",
-                              e.target.value,
-                            )
-                          }
-                        />
-                        <div className="flex justify-between items-center hover:bg-gray-50 rounded-lg p-2 transition-colors">
-                          <span className="text-sm text-gray-700">
-                            In Good Health
-                          </span>
-                          <Checkbox
-                            checked={history.goodHealth}
-                            className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
-                            onCheckedChange={(checked) =>
-                              handleHistoryChange(
-                                index,
-                                "goodHealth",
-                                checked === true,
-                              )
-                            }
-                          />
-                        </div>
-                        <div className="flex justify-between items-center hover:bg-gray-50 rounded-lg p-2 transition-colors">
-                          <span className="text-sm text-gray-700">Alive</span>
-                          <Checkbox
-                            checked={history.isAlive}
-                            className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
-                            onCheckedChange={(checked) =>
-                              handleHistoryChange(
-                                index,
-                                "isAlive",
-                                checked === true,
-                              )
-                            }
-                          />
-                        </div>
-                        {familyHistory.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            className="w-full !bg-red-400 text-white"
-                            onClick={() => handleRemoveHistory(index)}
-                          >
-                            Remove
-                          </Button>
-                        )}
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-[140px_80px_1fr_120px_80px_100px] px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 rounded-lg">
-                      <span>Relation</span>
-                      <span>Age</span>
-                      <span>Health Problems</span>
-                      <span className="text-center">Good Health</span>
-                      <span className="text-center">Alive</span>
-                      <div className="flex justify-end">
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="!bg-[#00a896] text-white hover:bg-[#028090] h-7 text-xs"
-                          onClick={handleAddHistory}
-                        >
-                          + Add
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="divide-y border border-gray-200 rounded-xl overflow-hidden">
-                      {familyHistory.map((history, index) => (
-                        <div
-                          key={index}
-                          className="grid grid-cols-[140px_80px_1fr_120px_80px_100px] items-center gap-3 p-3 hover:bg-gray-50 transition-colors"
-                        >
-                          <Input
-                            placeholder="e.g. Father"
-                            value={history.relation}
-                            onChange={(e) =>
-                              handleHistoryChange(
-                                index,
-                                "relation",
-                                e.target.value,
-                              )
-                            }
-                          />
-                          <Input
-                            placeholder="Age"
-                            value={history.age}
-                            onChange={(e) =>
-                              handleHistoryChange(index, "age", e.target.value)
-                            }
-                          />
-                          <Input
-                            placeholder="Health Problems"
-                            value={history.healthProblems}
-                            onChange={(e) =>
-                              handleHistoryChange(
-                                index,
-                                "healthProblems",
-                                e.target.value,
-                              )
-                            }
-                          />
-                          <div className="flex justify-center">
-                            <Checkbox
-                              checked={history.goodHealth}
-                              className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
-                              onCheckedChange={(checked) =>
-                                handleHistoryChange(
-                                  index,
-                                  "goodHealth",
-                                  checked === true,
-                                )
-                              }
-                            />
-                          </div>
-                          <div className="flex justify-center">
-                            <Checkbox
-                              checked={history.isAlive}
-                              className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
-                              onCheckedChange={(checked) =>
-                                handleHistoryChange(
-                                  index,
-                                  "isAlive",
-                                  checked === true,
-                                )
-                              }
-                            />
-                          </div>
-                          <div className="flex justify-end">
-                            {familyHistory.length > 1 && (
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                className="!bg-red-400 text-white h-8 text-xs"
-                                onClick={() => handleRemoveHistory(index)}
-                              >
-                                Remove
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* ── ADD PRESCRIPTION TOGGLE ── */}
+              {/* ── 8. PRESCRIPTION TOGGLE ── */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50">
                   <div className="flex items-center gap-3">
@@ -1215,9 +1251,7 @@ export function AddConsultationRecords({
                         consultation record
                       </p>
                     </div>
-
                     <div className="p-4 md:p-6 space-y-6">
-                      {/* ── DRUG TABLE ── */}
                       <div className="space-y-3">
                         <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
                           <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
@@ -1227,8 +1261,6 @@ export function AddConsultationRecords({
                             Drug Prescriptions
                           </h2>
                         </div>
-
-                        {/* TABLE HEADER */}
                         <div className="grid grid-cols-6 bg-gray-50 border border-gray-200 rounded-t-xl px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           <div>Medicine</div>
                           <div>Unit</div>
@@ -1237,8 +1269,6 @@ export function AddConsultationRecords({
                           <div>Frequency</div>
                           <div className="text-center">Action</div>
                         </div>
-
-                        {/* TABLE BODY */}
                         <div className="border border-t-0 border-gray-200 rounded-b-xl overflow-hidden divide-y divide-gray-200">
                           {drugs.map((drug, index) => (
                             <div
@@ -1248,8 +1278,8 @@ export function AddConsultationRecords({
                               <AutocompleteDrugs
                                 placeholder="Paracetamol"
                                 value={drug.medicine}
-                                onChange={(value) =>
-                                  handleDrugChange(index, "medicine", value)
+                                onChange={(v) =>
+                                  handleDrugChange(index, "medicine", v)
                                 }
                               />
                               <Input
@@ -1312,7 +1342,6 @@ export function AddConsultationRecords({
                             </div>
                           ))}
                         </div>
-
                         <Button
                           type="button"
                           size="sm"
@@ -1323,7 +1352,6 @@ export function AddConsultationRecords({
                         </Button>
                       </div>
 
-                      {/* ── EXAMINATION & RECOMMENDATIONS ── */}
                       <div className="space-y-4">
                         <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
                           <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
@@ -1338,7 +1366,7 @@ export function AddConsultationRecords({
                             <FieldLabel className="text-sm text-gray-600 mb-1 block">
                               Examination
                             </FieldLabel>
-                            <Input
+                            <Textarea
                               placeholder="e.g. Physical examination findings..."
                               value={prescriptionFields.examination}
                               onChange={(e) =>
@@ -1353,7 +1381,7 @@ export function AddConsultationRecords({
                             <FieldLabel className="text-sm text-gray-600 mb-1 block">
                               Recommendations
                             </FieldLabel>
-                            <Input
+                            <Textarea
                               placeholder="e.g. Rest, hydration, follow-up in 3 days..."
                               value={prescriptionFields.recommendation}
                               onChange={(e) =>
@@ -1371,7 +1399,7 @@ export function AddConsultationRecords({
                 )}
               </div>
 
-              {/* ── PRIVACY NOTICE ── */}
+              {/* ── 9. PRIVACY NOTICE ── */}
               <div className="space-y-4">
                 <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
                   <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
@@ -1414,9 +1442,7 @@ export function AddConsultationRecords({
           >
             <SelectTrigger className="!bg-white !text-base md:!text-lg h-12 md:h-14 border-blue-300">
               <SelectValue
-                placeholder={`Select a ${
-                  userIsSecretary ? "doctor" : "secretary"
-                } to share this record with`}
+                placeholder={`Select a ${userIsSecretary ? "doctor" : "secretary"} to share this record with`}
               />
             </SelectTrigger>
             <SelectContent>

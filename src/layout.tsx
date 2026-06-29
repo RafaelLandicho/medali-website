@@ -12,9 +12,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <HeaderPage />
         </div>
         {/* Floating QuickTool */}
-        <div>
-          <QuickTool />
-        </div>
+        <div>{/* <QuickTool /> */}</div>
 
         <main className="flex-1 overflow-auto">{children}</main>
       </div>

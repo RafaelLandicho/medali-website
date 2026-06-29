@@ -1,413 +1,510 @@
 "use client";
 
+import * as React from "react";
 import { Button } from "./ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "./ui/field";
+import { ref, onValue } from "firebase/database";
+import { db } from "@/firebaseConfig";
+import { useAuth } from "@/auth/authprovider";
+import { useNavigate } from "react-router-dom";
 
 import homePic from "./images/home1.jpg";
-import medicalPic from "./images/medicalRecords.jpg";
-import prescriptionPic from "./images/prescriptionBig.jpg";
-import analyticPic from "./images/analytics.jpg";
+
+import {
+  Users,
+  ClipboardList,
+  Pill,
+  BarChart2,
+  UserCog,
+  Activity,
+  AlertTriangle,
+  Biohazard,
+  UtensilsCrossed,
+  Clock,
+  ArrowRight,
+} from "lucide-react";
+
+import { FullRecordsDrawer } from "./viewfull-records-drawer";
+import type { Patient, MedicalRecord } from "./view-consultation-records";
+
+// ─── Types ─────────────────────────────────────────────────────────────────────
+type PatientRaw = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  age: number;
+  gender: string;
+  birthdate?: string;
+  address?: string;
+  address1?: string;
+  address2?: string;
+  city?: string;
+  province?: string;
+  telephone?: string;
+  addedBy?: string;
+  createdAt?: number;
+  records?: Record<string, any>;
+};
+
+// ─── Live patient card ─────────────────────────────────────────────────────────
+function LivePatientCard() {
+  const { user } = useAuth();
+  const [patient, setPatient] = React.useState<PatientRaw | null>(null);
+  const [latestRecord, setLatestRecord] = React.useState<any | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!user) return;
+    const patientsRef = ref(db, "patients");
+    const unsub = onValue(patientsRef, (snap) => {
+      const data = snap.val();
+      if (!data) {
+        setLoading(false);
+        return;
+      }
+
+      let bestPatient: PatientRaw | null = null;
+      let bestRecord: any = null;
+      let bestTime = 0;
+
+      Object.entries(data).forEach(([id, p]: [string, any]) => {
+        if (!p.records) return;
+        Object.values(p.records).forEach((r: any) => {
+          const t = r.createdAt ?? 0;
+          if (t > bestTime) {
+            bestTime = t;
+            bestRecord = r;
+            bestPatient = { id, ...p };
+          }
+        });
+      });
+
+      setPatient(bestPatient);
+      setLatestRecord(bestRecord);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [user]);
+
+  // Build the merged patient+record object for the drawer
+  const drawerPatient = React.useMemo<(Patient & MedicalRecord) | null>(() => {
+    if (!patient || !latestRecord) return null;
+    const diagnosisData =
+      latestRecord.diagnosis || latestRecord.patientDiagnosis || [];
+    return {
+      // Patient fields
+      id: patient.id,
+      firstName: patient.firstName,
+      lastName: patient.lastName,
+      gender: patient.gender,
+      age: patient.age,
+      birthdate: patient.birthdate ?? "",
+      address: patient.address ?? "",
+      address1: patient.address1 ?? "",
+      address2: patient.address2 ?? "",
+      city: patient.city ?? "",
+      province: patient.province ?? "",
+      telephone: patient.telephone ?? "",
+      addedBy: patient.addedBy ?? "",
+
+      recordId: latestRecord.recordId ?? latestRecord.id ?? "",
+      recordNumber: latestRecord.recordNumber ?? 1,
+      patientDiagnosis: Array.isArray(diagnosisData) ? diagnosisData : [],
+      symptoms: latestRecord.symptoms,
+      bloodPressure: latestRecord.bloodPressure,
+      heartRate: latestRecord.heartRate,
+      respiratoryRate: latestRecord.respiratoryRate,
+      temperature: latestRecord.temperature,
+      oxygenSaturation: latestRecord.oxygenSaturation,
+      weight: latestRecord.weight,
+      height: latestRecord.height,
+
+      medicalCare:
+        (patient as any).medicalCare ?? latestRecord.medicalCare ?? false,
+      drugAllergy:
+        (patient as any).drugAllergy ?? latestRecord.drugAllergy ?? false,
+      foodAllergy:
+        (patient as any).foodAllergy ?? latestRecord.foodAllergy ?? false,
+      isTBPositive:
+        (patient as any).isTBPositive ?? latestRecord.isTBPositive ?? false,
+      hasClinician:
+        (patient as any).hasClinician ?? latestRecord.hasClinician ?? false,
+      diet: (patient as any).diet ?? latestRecord.diet ?? false,
+
+      familyHistory: (patient as any).familyHistory,
+
+      createdBy: latestRecord.createdBy,
+      createdAt: latestRecord.createdAt,
+      sharedWith: latestRecord.sharedWith,
+      prescription: latestRecord.prescription,
+    } as Patient & MedicalRecord;
+  }, [patient, latestRecord]);
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 animate-pulse h-48 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-[#00c4b4]/30 border-t-[#00c4b4] rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!patient || !latestRecord) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
+        <ClipboardList className="w-10 h-10 text-white/20 mx-auto mb-3" />
+        <p className="text-white/40 text-sm font-semibold">No records yet</p>
+        <p className="text-white/25 text-xs mt-1">
+          Add your first patient to get started
+        </p>
+      </div>
+    );
+  }
+
+  const diagnoses: { diagnosis: string; severity: string }[] =
+    latestRecord.diagnosis ?? latestRecord.patientDiagnosis ?? [];
+
+  const timeAgo = latestRecord.createdAt
+    ? (() => {
+        const diff = Date.now() - latestRecord.createdAt;
+        const mins = Math.floor(diff / 60000);
+        const hrs = Math.floor(mins / 60);
+        const days = Math.floor(hrs / 24);
+        if (days > 0) return `${days}d ago`;
+        if (hrs > 0) return `${hrs}h ago`;
+        return `${mins}m ago`;
+      })()
+    : null;
+
+  const SeverityBadge = ({ severity }: { severity: string }) => {
+    const s = severity?.toLowerCase() ?? "";
+    const color =
+      s === "severe" || s === "critical"
+        ? "bg-red-500/20 text-red-300 border-red-500/30"
+        : s === "moderate"
+          ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+          : "bg-green-500/20 text-green-300 border-green-500/30";
+    return severity ? (
+      <span
+        className={`text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${color}`}
+      >
+        {severity}
+      </span>
+    ) : null;
+  };
+
+  return (
+    <>
+      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
+        {/* Card header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-white/8 bg-[#00c4b4]/10">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#00c4b4] animate-pulse" />
+            <span className="text-xs font-bold text-[#00c4b4] uppercase tracking-widest">
+              Latest record update
+            </span>
+          </div>
+          {timeAgo && (
+            <div className="flex items-center gap-1 text-xs text-white/40 font-semibold">
+              <Clock className="w-3 h-3" />
+              {timeAgo}
+            </div>
+          )}
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Patient info */}
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xl font-extrabold text-white leading-tight">
+                {patient.firstName} {patient.lastName}
+              </p>
+              <p className="text-sm text-white/50 font-semibold mt-0.5">
+                {patient.age} yrs · {patient.gender}
+              </p>
+            </div>
+            <div className="flex gap-1.5">
+              {latestRecord.isTBPositive && (
+                <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border bg-red-500/20 text-red-300 border-red-500/30">
+                  <Biohazard className="w-2.5 h-2.5" /> TB+
+                </span>
+              )}
+              {latestRecord.drugAllergy && (
+                <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border bg-orange-500/20 text-orange-300 border-orange-500/30">
+                  <AlertTriangle className="w-2.5 h-2.5" /> Drug
+                </span>
+              )}
+              {latestRecord.foodAllergy && (
+                <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border bg-yellow-500/20 text-yellow-300 border-yellow-500/30">
+                  <UtensilsCrossed className="w-2.5 h-2.5" /> Food
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Vitals row */}
+          {(latestRecord.bloodPressure ||
+            latestRecord.heartRate ||
+            latestRecord.temperature ||
+            latestRecord.oxygenSaturation) && (
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                {
+                  label: "BP",
+                  value: latestRecord.bloodPressure,
+                  unit: "mmHg",
+                },
+                { label: "HR", value: latestRecord.heartRate, unit: "bpm" },
+                {
+                  label: "Temp",
+                  value: latestRecord.temperature,
+                  unit: "°C",
+                },
+                {
+                  label: "SpO₂",
+                  value: latestRecord.oxygenSaturation,
+                  unit: "%",
+                },
+              ].map(({ label, value, unit }) =>
+                value ? (
+                  <div
+                    key={label}
+                    className="rounded-lg bg-white/5 border border-white/8 px-2 py-2 text-center"
+                  >
+                    <p className="text-[10px] text-white/40 font-bold uppercase">
+                      {label}
+                    </p>
+                    <p className="text-sm font-extrabold text-white leading-tight">
+                      {value}
+                    </p>
+                    <p className="text-[9px] text-white/30">{unit}</p>
+                  </div>
+                ) : null,
+              )}
+            </div>
+          )}
+
+          {/* Diagnoses */}
+          {diagnoses.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                Diagnosis
+              </p>
+              {diagnoses.slice(0, 2).map((d, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00c4b4] flex-shrink-0" />
+                  <span className="text-sm font-semibold text-white/80 truncate">
+                    {d.diagnosis}
+                  </span>
+                  <SeverityBadge severity={d.severity} />
+                </div>
+              ))}
+              {diagnoses.length > 2 && (
+                <p className="text-xs text-white/30 pl-3.5">
+                  +{diagnoses.length - 2} more
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Symptoms */}
+          {latestRecord.symptoms && (
+            <div>
+              <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">
+                Symptoms
+              </p>
+              <p className="text-sm text-white/60 font-semibold">
+                {latestRecord.symptoms}
+              </p>
+            </div>
+          )}
+
+          {/* View button — opens FullRecordsDrawer instead of navigating */}
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#00c4b4]/15 border border-[#00c4b4]/30 text-[#00c4b4] text-sm font-bold hover:bg-[#00c4b4]/25 transition-colors"
+          >
+            View full record <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* FullRecordsDrawer — only mounted when we have the merged patient */}
+      {drawerPatient && (
+        <FullRecordsDrawer
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          patient={drawerPatient}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── Quick action buttons ──────────────────────────────────────────────────────
+const QUICK_ACTIONS = [
+  {
+    label: "Patients",
+    icon: Users,
+    path: "/patients",
+    color: "#378add",
+    desc: "View & manage all patients",
+  },
+  {
+    label: "Records",
+    icon: ClipboardList,
+    path: "/records",
+    color: "#00a896",
+    desc: "Consultation history",
+  },
+  {
+    label: "Prescriptions",
+    icon: Pill,
+    path: "/prescriptions",
+    color: "#8b5cf6",
+    desc: "Issued prescriptions",
+  },
+  {
+    label: "Analytics",
+    icon: BarChart2,
+    path: "/analytics",
+    color: "#ef9f27",
+    desc: "Trends & reports",
+  },
+  {
+    label: "Users",
+    icon: UserCog,
+    path: "/users",
+    color: "#d4537e",
+    desc: "Doctors & secretaries",
+  },
+];
+
+function QuickActions() {
+  const navigate = useNavigate();
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {QUICK_ACTIONS.map(({ label, icon: Icon, path, color, desc }) => (
+        <button
+          key={label}
+          onClick={() => navigate(path)}
+          className="group flex flex-col items-start gap-2 p-3 rounded-xl border border-white/8 bg-white/4 hover:bg-white/8 hover:border-white/15 transition-all text-left"
+        >
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: color + "20" }}
+          >
+            <Icon className="w-4 h-4" style={{ color }} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-white leading-none">{label}</p>
+            <p className="text-[10px] text-white/40 mt-0.5 leading-tight">
+              {desc}
+            </p>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function Homepage() {
+  const { user } = useAuth();
+
   return (
     <div className="w-full !bg-white text-[#e8edf5] font-sans">
-      {/* UPSIDE PART NEEDS WORK */}
-      <section className="min-h-screen grid md:grid-cols-2 items-center px-10 md:px-14 py-24 gap-16 max-w-7xl mx-auto">
+      {/* ── HERO ── */}
+      <section className="min-h-screen bg-[#080f1a] grid md:grid-cols-2 items-center px-10 md:px-14 py-24 gap-16 max-w-7xl mx-auto">
         {/* LEFT */}
         <div className="flex flex-col">
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.07] tracking-tight text-black mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#00c4b4]/25 bg-[#00c4b4]/8 text-[#00c4b4] text-xs font-bold uppercase tracking-widest mb-6 w-fit">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00c4b4] animate-pulse" />
+            Medical Records Platform
+          </div>
+
+          <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.07] tracking-tight text-white mb-6">
             Your clinic's records,{" "}
             <em className="not-italic text-[#00c4b4]">reimagined</em> for the
             digital age.
           </h1>
 
-          <p className="text-lg text-black/75 leading-relaxed mb-10 max-w-md font-semibold">
+          <p className="text-lg text-white/60 leading-relaxed mb-10 max-w-md font-semibold">
             Medali centralizes patient records, prescriptions, and analytics
             into a single platform — so your team spends less time on paperwork
-            and more time on caring for your patients and other
-            responsibilities.
+            and more time on care.
           </p>
 
-          <div className="flex max-w-md mb-8">
-            <Field className="w-full">
-              <Input
-                placeholder="Your work email"
-                className="rounded-l-lg rounded-r-none h-12 text-base bg-white border-black text-white placeholder:text-white/30 focus:border-[#00c4b4]"
-              />
-            </Field>
-            <Button className="h-12 px-6 rounded-l-none rounded-r-lg !bg-[#00c4b4] hover:bg-[#00a896] text-white font-bold text-base whitespace-nowrap">
-              Get started Now
-            </Button>
-          </div>
-
-          <div className="flex flex-wrap gap-x-6 gap-y-2">
-            {[
-              "Electronic Medical Records",
-              "Digital Prescriptions",
-              "Analytics Dashboard",
-              "Team Accounts",
-            ].map((item) => (
-              <div
-                key={item}
-                className="flex items-center gap-2 text-m text-[#00c4b4]"
-              >
-                <span className="w-4 h-4 rounded-full bg-[#00c4b4]/15 flex items-center justify-center">
-                  <svg viewBox="0 0 10 10" className="w-2.5 h-2.5" fill="none">
-                    <path
-                      d="M2 5l2 2 4-4"
-                      stroke="#04a093"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-                {item}
+          {user ? (
+            <div className="space-y-4">
+              <p className="text-sm font-bold text-white/40 uppercase tracking-widest">
+                Quick access
+              </p>
+              <QuickActions />
+            </div>
+          ) : (
+            <>
+              <div className="flex max-w-md mb-8">
+                <Field className="w-full">
+                  <Input
+                    placeholder="Your work email"
+                    className="rounded-l-lg rounded-r-none h-12 text-base bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-[#00c4b4]"
+                  />
+                </Field>
+                <Button className="h-12 px-6 rounded-l-none rounded-r-lg !bg-[#00c4b4] hover:bg-[#00a896] text-white font-bold text-base whitespace-nowrap">
+                  Get started
+                </Button>
               </div>
-            ))}
-          </div>
+              <div className="flex flex-wrap gap-x-6 gap-y-2">
+                {[
+                  "Electronic Medical Records",
+                  "Digital Prescriptions",
+                  "Analytics Dashboard",
+                  "Team Accounts",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="flex items-center gap-2 text-sm text-[#00c4b4]"
+                  >
+                    <span className="w-4 h-4 rounded-full bg-[#00c4b4]/15 flex items-center justify-center">
+                      <svg
+                        viewBox="0 0 10 10"
+                        className="w-2.5 h-2.5"
+                        fill="none"
+                      >
+                        <path
+                          d="M2 5l2 2 4-4"
+                          stroke="#04a093"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* RIGHT */}
-        <div className="relative flex items-center justify-center">
-          <div className="absolute inset-0 bg-[#00c4b4]/10 blur-3xl rounded-full scale-75 pointer-events-none" />
-          <img
-            src={homePic}
-            className="relative w-full max-w-xl rounded-2xl shadow-2xl border border-white/8"
-            alt="Medali dashboard"
-          />
-        </div>
-      </section>
-
-      {/* TRUST ROW */}
-      <section className="border-y border-white/7 !bg-[#080f1a]">
-        <div className="max-w-5xl mx-auto grid md:grid-cols-3">
-          {[
-            {
-              label: "Save Time",
-              desc: "Instant record retrieval, no more paper hunting",
-              icon: (
-                <svg
-                  viewBox="0 0 24 24"
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                >
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M12 7v5l3 3" />
-                </svg>
-              ),
-            },
-            {
-              label: "Stay Updated",
-              desc: "Real-time sync across your entire care team",
-              icon: (
-                <svg
-                  viewBox="0 0 24 24"
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                >
-                  <path d="M4 12a8 8 0 0114.93-4M20 12a8 8 0 01-14.93 4" />
-                  <path d="M18 4l2 4-4.5.5M6 20l-2-4 4.5-.5" />
-                </svg>
-              ),
-            },
-            {
-              label: "Go Digital",
-              desc: "Accessible on any device, anywhere you work",
-              icon: (
-                <svg
-                  viewBox="0 0 24 24"
-                  className="w-6 h-6 "
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                >
-                  <rect x="5" y="3" width="14" height="18" rx="2" />
-                  <path d="M9 7h6M9 11h6M9 15h4" />
-                </svg>
-              ),
-            },
-          ].map((item, i) => (
-            <div
-              key={item.label}
-              className={`flex flex-col items-center gap-4 py-14 px-10 text-center ${i < 2 ? "md:border-r border-white/7" : ""}`}
-            >
-              <div className="w-12 h-12 rounded-xl bg-[#00c4b4]/10 border border-[#00c4b4]/20 flex items-center justify-center text-[#00c4b4]">
-                {item.icon}
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-1">
-                  {item.label}
-                </h3>
-                <p className="text-sm text-white leading-relaxed">
-                  {item.desc}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* FEATURE SECTIONS */}
-      {/* Section 1 — EMR */}
-      <section className="py-28 px-10 md:px-14">
-        <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-20 items-center">
-          <div className="rounded-2xl overflow-hidden border border-white/8 shadow-2xl">
-            <img
-              src={medicalPic}
-              className="w-full h-full object-cover"
-              alt="Medical Records"
-            />
-          </div>
-          <div>
-            <p className="text-s font-semibold !text-[#00c4b4] uppercase tracking-widest mb-4">
-              Electronic Medical Records
-            </p>
-            <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight text-black mb-6 leading-tight">
-              Complete patient histories, in seconds.
-            </h2>
-            <p className="text-base text-black leading-relaxed mb-4 font-semibold">
-              Store and retrieve full medical histories — medications, treatment
-              plans, allergies, test results, and consultations — from a single
-              secure system.
-            </p>
-            <p className="text-base text-black leading-relaxed font-semibold">
-              Medali reduces paperwork, streamlines clinical workflows, and
-              helps practitioners make better decisions through organized
-              digital records.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Section 2 — Prescriptions */}
-      <section className="py-28 px-10 md:px-14 bg-[#0a1422]">
-        <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-20 items-center">
-          <div>
-            <p className="text-xs font-semibold text-[#00c4b4] uppercase tracking-widest mb-4">
-              Digital Prescriptions
-            </p>
-            <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white mb-6 leading-tight">
-              Issue prescriptions without the paper trail.
-            </h2>
-            <p className="text-base text-white leading-relaxed font-semibold">
-              Issue, monitor, and organize prescriptions digitally. Review full
-              medication histories instantly, eliminate writing errors, and keep
-              all prescriptions traceable in one place.
-            </p>
-          </div>
-          <div className="rounded-2xl overflow-hidden border border-white/8 shadow-2xl">
-            <img
-              src={prescriptionPic}
-              className="w-full h-full object-cover"
-              alt="Digital Prescriptions"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Section 3 — Analytics */}
-      <section className="py-28 px-10 md:px-14">
-        <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-20 items-center">
-          <div className="rounded-2xl overflow-hidden border border-white/8 shadow-2xl">
-            <img
-              src={analyticPic}
-              className="w-full h-full object-cover"
-              alt="Analytics"
-            />
-          </div>
-          <div>
-            <p className="text-m font-semibold text-[#00c4b4] uppercase tracking-widest mb-4">
-              Reports & Analytics
-            </p>
-            <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight text-black mb-6 leading-tight">
-              Insights that help you run a better clinic.
-            </h2>
-            <p className="text-base text-black leading-relaxed font-semibold">
-              Track patient trends, prescription counts, monthly consultations,
-              and clinic performance with visual dashboards and dynamic reports
-              — all in real time.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* FEATURE GRID */}
-      <section className="py-28 px-10 md:px-14 bg-[#080f1a]">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <p className="text-xs font-semibold text-[#00c4b4] uppercase tracking-widest mb-4">
-              Everything you need
-            </p>
-            <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white">
-              Built for every role in your clinic
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-2 border border-white/7 rounded-2xl overflow-hidden">
-            {[
-              {
-                title: "Analytics & Insights",
-                desc: "Monitor patient records and prescriptions, track common diagnoses, and generate full medical reports with just a few clicks.",
-                icon: (
-                  <path
-                    d="M3 18l4-8 4 4 3-6 4 10"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    fill="none"
-                  />
-                ),
-              },
-              {
-                title: "Collaborate with Secretaries",
-                desc: "Refer patients, share records, and collaborate with trusted secretaries in real time.",
-                icon: (
-                  <>
-                    <circle
-                      cx="9"
-                      cy="7"
-                      r="3"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      fill="none"
-                    />
-                    <path
-                      d="M3 20c0-3.3 2.7-6 6-6"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      fill="none"
-                    />
-                    <circle
-                      cx="17"
-                      cy="12"
-                      r="2.5"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      fill="none"
-                    />
-                    <path
-                      d="M13 20c0-2.5 1.8-4.5 4-4.5s4 2 4 4.5"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      fill="none"
-                    />
-                  </>
-                ),
-              },
-              {
-                title: "User Management",
-                desc: "Add doctors and secretaries while controlling exactly what each person can view and edit.",
-                icon: (
-                  <>
-                    <rect
-                      x="3"
-                      y="11"
-                      width="18"
-                      height="11"
-                      rx="2"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      fill="none"
-                    />
-                    <path
-                      d="M7 11V7a5 5 0 0110 0v4"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      fill="none"
-                    />
-                  </>
-                ),
-              },
-              {
-                title: "View Doctor Information",
-                desc: "View registered doctor and secretary information from their current clinic schedule, field of expertise, education and etc.",
-                icon: (
-                  <>
-                    <path
-                      d="M12 12a4 4 0 100-8 4 4 0 000 8zm-7 9a7 7 0 0114 0"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                    />
-                    <circle cx="12" cy="16" r="1.5" fill="currentColor" />
-                  </>
-                ),
-              },
-            ].map((feat, i) => (
-              <div
-                key={feat.title}
-                className={[
-                  "p-10 bg-[#0b1525] hover:bg-[#0f1f35] transition-colors",
-                  i < 2 ? "border-b border-white/7" : "",
-                  i % 2 === 0 ? "md:border-r border-white/7" : "",
-                ].join(" ")}
-              >
-                <div className="w-11 h-11 rounded-xl bg-[#00c4b4]/10 border border-[#00c4b4]/20 flex items-center justify-center text-[#00c4b4] mb-5">
-                  <svg viewBox="0 0 24 24" className="w-5 h-5">
-                    {feat.icon}
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white mb-3">
-                  {feat.title}
-                </h3>
-                <p className="text-sm text-white leading-relaxed font-semibold">
-                  {feat.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-28 px-10 md:px-14 text-center bg-[#0a1422]">
-        <div className="max-w-xl mx-auto">
-          <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white mb-5">
-            Ready to go{" "}
-            <em className="not-italic text-[#00c4b4]">fully digital?</em>
-          </h2>
-          <p className="text-base text-white font-semibold mb-10">
-            Join hundreds of clinics already using Medali to modernize patient
-            care.
-          </p>
-          <div className="flex max-w-md mx-auto">
-            <Field className="w-full">
-              <Input
-                placeholder="Your work email"
-                className="rounded-l-lg rounded-r-none h-12 text-base bg-white/5 border-white/10 text-white placeholder:text-white focus:border-[#00c4b4] focus:ring-0"
+        <div className="flex flex-col gap-4">
+          {user ? (
+            <LivePatientCard />
+          ) : (
+            <div className="relative flex items-center justify-center">
+              <div className="absolute inset-0 bg-[#00c4b4]/10 blur-3xl rounded-full scale-75 pointer-events-none" />
+              <img
+                src={homePic}
+                className="relative w-full max-w-xl rounded-2xl shadow-2xl border border-white/8"
+                alt="Medali dashboard"
               />
-            </Field>
-            <Button className="h-12 px-6 rounded-l-none rounded-r-lg !bg-[#00c4b4] hover:bg-[#00a896] text-white font-semibold whitespace-nowrap">
-              Get started Now
-            </Button>
-          </div>
+            </div>
+          )}
         </div>
       </section>
-
-      {/* FOOTER */}
-      <footer className="px-10 md:px-14 py-8 border-t border-white/6 flex items-center justify-between bg-[#080f1a]">
-        <span className="text-base font-bold text-white/35">
-          meda<span className="text-[#00c4b4]">li</span>
-        </span>
-        <p className="text-sm text-white/20">
-          © 2026 Medali. All rights reserved.
-        </p>
-      </footer>
     </div>
   );
 }

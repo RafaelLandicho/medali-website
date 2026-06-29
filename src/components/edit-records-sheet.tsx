@@ -238,34 +238,57 @@ export function EditRecordsSheet({
     }
 
     try {
-      const pendingRef = ref(db, "pending/updates");
-      const newPending = push(pendingRef);
-      await set(newPending, {
-        ...fields,
+      const patientRef = ref(db, `patients/${fields.id}`);
+      await update(patientRef, {
+        address1: fields.address1 || "",
+        address2: fields.address2 || "",
+        city: fields.city || "",
+        province: fields.province || "",
+        telephone: fields.telephone || "",
         address:
           (fields.address1 || "") +
           (fields.address2 || "") +
           (fields.city || "") +
           (fields.province || ""),
-        patientId: fields.id,
-        recordId: fields.recordId,
-        status: "pending",
-        submittedBy: user?.uid || "",
-        submittedAt: Date.now(),
       });
+
+      if (fields.recordId) {
+        const recordRef = ref(
+          db,
+          `patients/${fields.id}/records/${fields.recordId}`,
+        );
+        await update(recordRef, {
+          diagnosis: fields.patientDiagnosis || [],
+          symptoms: fields.symptoms || "",
+          bloodPressure: fields.bloodPressure || "",
+          heartRate: fields.heartRate || "",
+          respiratoryRate: fields.respiratoryRate || "",
+          temperature: fields.temperature || "",
+          oxygenSaturation: fields.oxygenSaturation || "",
+          weight: fields.weight || "",
+          height: fields.height || "",
+          // medicalCare: fields.medicalCare ?? false,
+          // drugAllergy: fields.drugAllergy ?? false,
+          // foodAllergy: fields.foodAllergy ?? false,
+          // isTBPositive: fields.isTBPositive ?? false,
+          // hasClinician: fields.hasClinician ?? false,
+          // diet: fields.diet ?? false,
+          // familyHistory: fields.familyHistory || [],
+        });
+      }
 
       const logsRef = ref(db, "logs/");
       const newLog = push(logsRef);
       await set(newLog, {
-        medicalRecordLog: `Patient record update submitted for approval by ${user?.firstName} ${user?.lastName} for patient ${fields.firstName} ${fields.lastName}`,
+        medicalRecordLog: `Patient record updated by ${user?.firstName} ${user?.lastName} for patient ${fields.firstName} ${fields.lastName}`,
         logTime: new Date().toLocaleString(),
       });
 
-      toast.success("Update submitted for approval.");
+      toast.success("Record updated successfully!");
       onOpenChange(false);
     } catch (error) {
-      console.error("Error submitting update:", error);
-      toast.error("Failed to submit update. Please try again.");
+      console.error("Error updating record:", error);
+      toast.error("Failed to update record. Please try again.");
     }
   };
 
@@ -809,8 +832,8 @@ export function EditRecordsSheet({
                   </div>
                 </div>
 
-                {/* ── HEALTH HISTORY ── EDITABLE ── */}
-                <div className="space-y-4">
+                {/* HEALTH HISTORY */}
+                {/* <div className="space-y-4">
                   <SectionHeader
                     icon={<ClipboardList className="w-4 h-4 text-[#00a896]" />}
                     title="Health History"
@@ -868,7 +891,7 @@ export function EditRecordsSheet({
                       </div>
                     ))}
                   </div>
-                </div>
+                </div> */}
 
                 {/* ── SYMPTOMS ── EDITABLE ── */}
                 <div className="space-y-4">
@@ -891,8 +914,8 @@ export function EditRecordsSheet({
                 {/* ── DIAGNOSIS ── EDITABLE ── */}
                 <DiagnosisSection />
 
-                {/* ── FAMILY HISTORY ── EDITABLE ── */}
-                <FamilyHistorySection />
+                {/* ── FAMILY HISTORY ── EDITABLE ──
+                <FamilyHistorySection /> */}
 
                 {/* ── SAVE BUTTON ── */}
                 <div className="flex justify-center pt-6 sticky bottom-0 bg-white pb-4">

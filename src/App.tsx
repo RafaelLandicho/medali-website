@@ -28,6 +28,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { PendingRecords } from "./components/view-pending";
 import { EditProfile } from "./components/edit-profile";
 import { AddPatient } from "./components/add-patient";
+
+// @ts-ignore
+import { MockDataSeeder } from "./components/MockDataSeeder";
 import { AddConsultationRecords } from "./components/add-consultation-record";
 import { ConsultationRecords } from "./components/view-consultation-records";
 import { Activity } from "lucide-react";
@@ -367,6 +370,8 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route path="/seed" element={<MockDataSeeder />} />
         </Routes>
       </HashRouter>
     </>

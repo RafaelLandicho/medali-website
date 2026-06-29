@@ -25,6 +25,9 @@ import {
   ClipboardList,
   Pill,
   TrendingUp,
+  MapPin as MapPinIcon,
+  Users as UsersIcon,
+  Phone as PhoneIcon,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -67,11 +70,11 @@ import { ref, onValue } from "firebase/database";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/authprovider";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { EmptyRecords } from "./empty-records";
 import { AddRecordsDrawer } from "./add-records-drawer";
 import { FullRecordsDrawer } from "./viewfull-records-drawer";
 import { EditRecordsSheet } from "./edit-records-sheet";
 import { PrescriptionDrawer } from "./add-prescription-drawer";
+import { IconGenderAgender, IconNumber } from "@tabler/icons-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -137,9 +140,173 @@ export type Patient = {
   province: string;
   telephone: string;
   addedBy: string;
+  medicalCare?: boolean;
+  drugAllergy?: boolean;
+  foodAllergy?: boolean;
+  isTBPositive?: boolean;
+  hasClinician?: boolean;
+  diet?: boolean;
+  symptoms?: string;
+  familyHistory?: {
+    relation: string;
+    age: string;
+    healthProblems: string;
+    goodHealth: boolean;
+    isAlive: boolean;
+  }[];
 };
 
 type PatientWithRecord = Patient & MedicalRecord;
+
+// ─── Patient Details Card ─────────────────────────────────────────────────────
+
+const HEALTH_HISTORY_ITEMS = [
+  { key: "medicalCare", label: "Medical care" },
+  { key: "drugAllergy", label: "Drug allergy" },
+  { key: "foodAllergy", label: "Food allergy" },
+  { key: "isTBPositive", label: "TB positive" },
+  { key: "hasClinician", label: "Has clinician" },
+  { key: "diet", label: "Restricted diet" },
+] as const;
+
+const PatientDetailsCard = ({ patient }: { patient: Patient }) => {
+  const activeFlags = HEALTH_HISTORY_ITEMS.filter(
+    (item) => !!patient[item.key as keyof Patient],
+  );
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      {/* ── Teal header strip ── */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-[#00a896] text-white">
+        <div className="flex items-center gap-2">
+          <UserIcon className="w-4 h-4 opacity-80" />
+          <span className="text-sm font-bold tracking-wide"></span>
+        </div>
+      </div>
+
+      <div className="divide-y divide-gray-100">
+        {/* ── Row 1: Contact + Address ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-100">
+          {[
+            {
+              label: "Gender",
+              value: patient.gender,
+            },
+            {
+              label: "Age",
+              value: patient.age,
+            },
+            {
+              label: "Birthdate",
+              value: patient.birthdate,
+            },
+            {
+              icon: <PhoneIcon className="w-3 h-3" />,
+              label: "Phone",
+              value: patient.telephone,
+            },
+            {
+              icon: <MapPinIcon className="w-3 h-3" />,
+              label: "City",
+              value: patient.city,
+            },
+            {
+              icon: <MapPinIcon className="w-3 h-3" />,
+              label: "Province",
+              value: patient.province,
+            },
+            {
+              icon: <MapPinIcon className="w-3 h-3" />,
+              label: "Address",
+              value:
+                [patient.address1, patient.address2]
+                  .filter(Boolean)
+                  .join(", ") || patient.address,
+            },
+          ].map(({ icon, label, value }) => (
+            <div key={label} className="px-4 py-3">
+              <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#00a896] mb-0.5">
+                {icon}
+                {label}
+              </div>
+              <p className="text-sm font-semibold text-gray-800 truncate">
+                {value || "—"}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Row 2: Health flags + Family history ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
+          {/* Health flags */}
+          <div className="px-4 py-3">
+            <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#00a896] mb-2">
+              <AlertTriangle className="w-3 h-3" />
+              Health Flags
+            </div>
+            {activeFlags.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {activeFlags.map((item) => (
+                  <span
+                    key={item.key}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+                    {item.label}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-xs text-gray-300 italic">
+                No flags recorded
+              </span>
+            )}
+          </div>
+
+          {/* Family history — compact pill list */}
+          <div className="px-4 py-3">
+            <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#00a896] mb-2">
+              <UsersIcon className="w-3 h-3" />
+              Family History
+            </div>
+            {patient.familyHistory && patient.familyHistory.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {patient.familyHistory.map((fh, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-100 text-xs"
+                  >
+                    <span className="font-semibold text-gray-700">
+                      {fh.relation}
+                    </span>
+                    {fh.healthProblems && (
+                      <>
+                        <span className="text-gray-300">·</span>
+                        <span className="text-gray-500 truncate max-w-[110px]">
+                          {fh.healthProblems}
+                        </span>
+                      </>
+                    )}
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        fh.isAlive ? "bg-[#00a896]" : "bg-gray-300"
+                      }`}
+                      title={fh.isAlive ? "Alive" : "Deceased"}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="text-xs text-gray-300 italic">
+                No family history recorded
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ─── Vital config ─────────────────────────────────────────────────────────────
 
@@ -165,12 +332,7 @@ const VITALS: { key: VitalKey; label: string; unit?: string; color: string }[] =
       color: "#00c4b4",
     },
     { key: "temperature", label: "Temperature", unit: "°C", color: "#00c4b4" },
-    {
-      key: "oxygenSaturation",
-      label: "O₂ Sat",
-      unit: "%",
-      color: "#00c4b4",
-    },
+    { key: "oxygenSaturation", label: "O₂ Sat", unit: "%", color: "#00c4b4" },
     { key: "weight", label: "Weight", unit: "kg", color: "#00c4b4" },
     { key: "height", label: "Height", unit: "cm", color: "#00c4b4" },
   ];
@@ -256,7 +418,6 @@ const VitalTrendDialog = ({
   onOpenChange,
   vitalKey,
   label,
-
   color,
   records,
 }: {
@@ -264,7 +425,6 @@ const VitalTrendDialog = ({
   onOpenChange: (v: boolean) => void;
   vitalKey: VitalKey;
   label: string;
-
   color: string;
   records: MedicalRecord[];
 }) => {
@@ -302,10 +462,13 @@ const VitalTrendDialog = ({
       <DialogContent className="max-w-2xl bg-white border-gray-200 text-gray-800">
         <DialogHeader>
           <DialogTitle className="text-gray-800 flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" />
+            <span
+              className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: color }}
+            />
             {label}
           </DialogTitle>
-          <DialogDescription className="text-gray-400 text-xs"></DialogDescription>
+          <DialogDescription className="text-gray-400 text-xs" />
         </DialogHeader>
 
         {chartData.length === 0 ? (
@@ -454,9 +617,7 @@ const VitalTrendDialog = ({
                   {chartData.map((d, i) => (
                     <tr
                       key={i}
-                      className={`border-b border-gray-100 ${
-                        i % 2 === 0 ? "bg-white" : "bg-gray-50/40"
-                      }`}
+                      className={`border-b border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}
                     >
                       <td className="px-3 py-2 text-gray-500">{d.name}</td>
                       <td className="px-3 py-2 text-right font-semibold text-gray-800">
@@ -474,43 +635,38 @@ const VitalTrendDialog = ({
   );
 };
 
-// ─── Vital cell with inline sparkline ────────────────────────────────────────
+// ─── Sparkline cell ───────────────────────────────────────────────────────────
 
-const VitalCell = ({
-  value,
+const SparklineCell = ({
   vital,
-  allRecords,
-  patientName,
-  isLatest,
+  records,
 }: {
-  value: string | undefined;
   vital: (typeof VITALS)[number];
-  allRecords: MedicalRecord[];
-  patientName: string;
-  isLatest: boolean;
+  records: MedicalRecord[];
 }) => {
   const [open, setOpen] = React.useState(false);
 
-  const numericCount = React.useMemo(() => {
-    return allRecords
-      .filter((r) => r[vital.key] !== undefined && r[vital.key] !== "")
-      .map((r) => parseFloat((r[vital.key] as string).replace(/[^\d.]/g, "")))
-      .filter((v) => !isNaN(v)).length;
-  }, [allRecords, vital.key]);
+  const numericCount = React.useMemo(
+    () =>
+      records
+        .filter((r) => r[vital.key] !== undefined && r[vital.key] !== "")
+        .map((r) => parseFloat((r[vital.key] as string).replace(/[^\d.]/g, "")))
+        .filter((v) => !isNaN(v)).length,
+    [records, vital.key],
+  );
 
-  const canSparkline = isLatest && numericCount >= 2;
+  if (numericCount < 2) return null;
 
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-sm text-gray-700 tabular-nums">{value || "—"}</span>
-      {canSparkline && (
-        <Sparkline
-          records={allRecords}
-          vitalKey={vital.key}
-          color={vital.color}
-          onClick={() => setOpen(true)}
-        />
-      )}
+    <>
+      <Sparkline
+        records={records}
+        vitalKey={vital.key}
+        color={vital.color}
+        width={72}
+        height={28}
+        onClick={() => setOpen(true)}
+      />
       {open && (
         <VitalTrendDialog
           open={open}
@@ -518,10 +674,10 @@ const VitalCell = ({
           vitalKey={vital.key}
           label={vital.label}
           color={vital.color}
-          records={allRecords}
+          records={records}
         />
       )}
-    </div>
+    </>
   );
 };
 
@@ -603,9 +759,8 @@ const VitalsGrid = ({
 
 const disableEdit = (record: MedicalRecord): boolean => {
   if (!record.createdAt) return false;
-  const createdDate = new Date(record.createdAt);
-  const now = new Date();
-  const hoursDiff = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
+  const hoursDiff =
+    (Date.now() - new Date(record.createdAt).getTime()) / (1000 * 60 * 60);
   return hoursDiff >= 24;
 };
 
@@ -643,7 +798,6 @@ const SeverityBadge = ({ severity }: { severity: string }) => {
         : s === "mild" || s === "low"
           ? "bg-green-100 text-green-700 border-green-200"
           : "bg-gray-100 text-gray-500 border-gray-200";
-
   if (!severity) return null;
   return (
     <span
@@ -658,20 +812,17 @@ const RiskIndicators = ({ record }: { record: MedicalRecord }) => (
   <div className="flex items-center gap-1 flex-wrap">
     {record.isTBPositive && (
       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">
-        <Biohazard className="w-2.5 h-2.5" />
-        TB+
+        <Biohazard className="w-2.5 h-2.5" /> TB+
       </span>
     )}
     {record.drugAllergy && (
       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-200">
-        <AlertTriangle className="w-2.5 h-2.5" />
-        Drug Allergy
+        <AlertTriangle className="w-2.5 h-2.5" /> Drug Allergy
       </span>
     )}
     {record.foodAllergy && (
       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-yellow-100 text-yellow-700 border border-yellow-200">
-        <UtensilsCrossed className="w-2.5 h-2.5" />
-        Food Allergy
+        <UtensilsCrossed className="w-2.5 h-2.5" /> Food Allergy
       </span>
     )}
     {!record.isTBPositive && !record.drugAllergy && !record.foodAllergy && (
@@ -719,6 +870,7 @@ const ConsultationRecordActions = ({ records }: { records: MedicalRecord }) => {
 
   return (
     <div className="flex items-center gap-1">
+      {/* View — always visible */}
       <button
         onClick={() => setOpenUser(true)}
         title="View patient record"
@@ -732,83 +884,47 @@ const ConsultationRecordActions = ({ records }: { records: MedicalRecord }) => {
         patient={patientWithRecord}
       />
 
-      {!isExpired ? (
-        <button
-          onClick={() => setOpenEdit(true)}
-          title="Edit record"
-          className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
-        >
-          <PenIcon className="w-3.5 h-3.5 text-[#00a896]" />
-        </button>
-      ) : (
-        <div className="relative group">
-          <button
-            disabled
-            title="Cannot edit after 24 hours"
-            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-100 !bg-gray-50 cursor-not-allowed opacity-40"
-          >
-            <PenIcon className="w-3.5 h-3.5 text-gray-400" />
-          </button>
-          <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap pointer-events-none z-50">
-            24h edit limit passed
-          </span>
-        </div>
-      )}
-      <EditRecordsSheet
-        open={openEdit}
-        onOpenChange={setOpenEdit}
-        patient={patientWithRecord}
-      />
-
-      {userIsDoctor && (
+      {/* Edit pen — hidden when expired */}
+      {!isExpired && (
         <>
-          {!hasPrescription && !isExpired && (
-            <button
-              onClick={() => setOpenPrescription(true)}
-              title="Add Prescription"
-              className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
-            >
-              <PillIcon className="w-3.5 h-3.5 text-[#00a896]" />
-            </button>
-          )}
-          {hasPrescription && !isExpired && (
-            <button
-              onClick={() => setOpenPrescription(true)}
-              title="View / Edit Prescription"
-              className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-green-100 hover:bg-green-50 transition-colors"
-            >
-              <PillIcon className="w-3.5 h-3.5 text-green-600" />
-            </button>
-          )}
-          {isExpired && (
-            <div className="relative group">
-              <button
-                disabled
-                title={
-                  hasPrescription
-                    ? "Cannot view prescription after 24 hours"
-                    : "Cannot add prescription after 24 hours"
-                }
-                className={`inline-flex items-center justify-center w-7 h-7 rounded border transition-colors cursor-not-allowed ${
-                  hasPrescription
-                    ? "border-gray-200 !bg-green-50 opacity-60"
-                    : "border-gray-100 !bg-gray-50 opacity-40"
-                }`}
-              >
-                <PillIcon
-                  className={`w-3.5 h-3.5 ${hasPrescription ? "text-green-400" : "text-gray-400"}`}
-                />
-              </button>
-              <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap pointer-events-none z-50">
-                24h edit limit passed
-              </span>
-            </div>
-          )}
+          <button
+            onClick={() => setOpenEdit(true)}
+            title="Edit record"
+            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
+          >
+            <PenIcon className="w-3.5 h-3.5 text-[#00a896]" />
+          </button>
+          <EditRecordsSheet
+            open={openEdit}
+            onOpenChange={setOpenEdit}
+            patient={patientWithRecord}
+          />
+        </>
+      )}
+
+      {/* Prescription pill — hidden when expired */}
+      {userIsDoctor && !isExpired && (
+        <>
+          <button
+            onClick={() => setOpenPrescription(true)}
+            title={
+              hasPrescription ? "View / Edit Prescription" : "Add Prescription"
+            }
+            className={`inline-flex items-center justify-center w-7 h-7 rounded border transition-colors ${
+              hasPrescription
+                ? "border-gray-200 !bg-green-100 hover:bg-green-50"
+                : "border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300"
+            }`}
+          >
+            <PillIcon
+              className={`w-3.5 h-3.5 ${hasPrescription ? "text-green-600" : "text-[#00a896]"}`}
+            />
+          </button>
           <PrescriptionDrawer
             open={openPrescription}
             onOpenChange={setOpenPrescription}
             patient={patientWithRecord}
-            readOnly={isExpired}
+            readOnly={false}
           />
         </>
       )}
@@ -830,7 +946,6 @@ const ViewPrescriptionDialog = ({
   patient: Patient;
 }) => {
   const prescription = record.prescription;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -842,11 +957,8 @@ const ViewPrescriptionDialog = ({
             {` · Record #${record.recordNumber ?? record.recordId}`}
           </DialogDescription>
         </DialogHeader>
-
         {!prescription ? (
-          <p className="text-sm text-gray-400 py-4">
-            No prescription found for this record.
-          </p>
+          <p className="text-sm text-gray-400 py-4">No prescription found.</p>
         ) : (
           <div className="space-y-5">
             <div>
@@ -878,7 +990,6 @@ const ViewPrescriptionDialog = ({
                 <p className="text-sm text-gray-300">No diagnosis recorded</p>
               )}
             </div>
-
             <div>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Drugs
@@ -915,7 +1026,6 @@ const ViewPrescriptionDialog = ({
                 <p className="text-sm text-gray-300">No drugs prescribed</p>
               )}
             </div>
-
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
@@ -934,7 +1044,6 @@ const ViewPrescriptionDialog = ({
                 </p>
               </div>
             </div>
-
             <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-400 flex-wrap gap-1">
               <span>
                 Added by {prescription.addedBy || "—"}
@@ -957,12 +1066,11 @@ const PrescriptionRecordActions = ({ record }: { record: MedicalRecord }) => {
   const patient = location.state as Patient | null;
   const [openView, setOpenView] = React.useState(false);
   const [openEdit, setOpenEdit] = React.useState(false);
-  const disable = React.useMemo(() => disableEdit(record), [record]);
+  const isExpired = React.useMemo(() => disableEdit(record), [record]);
 
   const userIsDoctor =
     user?.type?.toLowerCase() === "doctor" ||
     user?.type?.toLowerCase() === "admin";
-
   if (!patient) return null;
 
   const patientWithRecord: PatientWithRecord = {
@@ -975,6 +1083,7 @@ const PrescriptionRecordActions = ({ record }: { record: MedicalRecord }) => {
 
   return (
     <div className="flex items-center gap-1">
+      {/* View pill — always visible */}
       <button
         onClick={() => setOpenView(true)}
         title="View prescription"
@@ -989,72 +1098,45 @@ const PrescriptionRecordActions = ({ record }: { record: MedicalRecord }) => {
         patient={patient}
       />
 
-      {userIsDoctor && !disable && (
-        <button
-          onClick={() => setOpenEdit(true)}
-          title="Edit prescription"
-          className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
-        >
-          <PenIcon className="w-3.5 h-3.5 text-[#00a896]" />
-        </button>
-      )}
-
-      {userIsDoctor && disable && (
-        <div className="relative group">
+      {/* Edit pen — hidden when expired */}
+      {userIsDoctor && !isExpired && (
+        <>
           <button
-            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-gray-100 cursor-default opacity-50"
-            disabled
-            title="Expired - Cannot edit after 24 hours"
+            onClick={() => setOpenEdit(true)}
+            title="Edit prescription"
+            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
           >
-            <PenIcon className="w-3.5 h-3.5 text-gray-400" />
+            <PenIcon className="w-3.5 h-3.5 text-[#00a896]" />
           </button>
-          <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap pointer-events-none">
-            Expired (24h limit)
-          </span>
-        </div>
+          <PrescriptionDrawer
+            open={openEdit}
+            onOpenChange={setOpenEdit}
+            patient={patientWithRecord}
+            readOnly={false}
+          />
+        </>
       )}
-
-      <PrescriptionDrawer
-        open={openEdit}
-        onOpenChange={setOpenEdit}
-        patient={patientWithRecord}
-        readOnly={disable}
-      />
     </div>
   );
 };
 
 // ─── Column definitions ───────────────────────────────────────────────────────
 
-// Factory: builds a vital column; sparkline only on the latest (index 0) row
 function makeVitalColumn(
   vital: (typeof VITALS)[number],
-  getPatientName: () => string,
 ): ColumnDef<MedicalRecord> {
   return {
     accessorKey: vital.key,
     header: vital.label,
-    cell: ({ row, table }) => {
-      const allRecords = table.options.data as MedicalRecord[];
-      const value = row.original[vital.key] as string | undefined;
-      // records are sorted newest-first; index 0 is the most recent record
-      const isLatest = row.index === 0;
-      return (
-        <VitalCell
-          value={value}
-          vital={vital}
-          allRecords={allRecords}
-          patientName={getPatientName()}
-          isLatest={isLatest}
-        />
-      );
-    },
+    cell: ({ row }) => (
+      <span className="text-sm text-gray-700 tabular-nums">
+        {(row.original[vital.key] as string | undefined) || "—"}
+      </span>
+    ),
   };
 }
 
-const buildColumns = (
-  getPatientName: () => string,
-): ColumnDef<MedicalRecord>[] => [
+const buildColumns = (): ColumnDef<MedicalRecord>[] => [
   {
     id: "actions",
     header: "",
@@ -1101,7 +1183,6 @@ const buildColumns = (
       );
     },
   },
-  // Symptoms — text only, no sparkline
   {
     accessorKey: "symptoms",
     header: "Symptoms",
@@ -1111,9 +1192,8 @@ const buildColumns = (
       </span>
     ),
   },
-  // Numeric vitals — each gets an inline sparkline
   ...VITALS.filter((v) => v.key !== "symptoms").map((vital) =>
-    makeVitalColumn(vital, getPatientName),
+    makeVitalColumn(vital),
   ),
   {
     id: "risks",
@@ -1273,7 +1353,6 @@ export function ConsultationRecords() {
   const [openUser, setOpenUser] = React.useState(false);
 
   const patient = location.state as Patient | null;
-
   const [records, setRecords] = React.useState<MedicalRecord[]>([]);
   const [loading, setLoading] = React.useState(true);
 
@@ -1298,51 +1377,48 @@ export function ConsultationRecords() {
 
   React.useEffect(() => {
     if (!user || !patient?.id) return;
-
     let innerUnsub: (() => void) | undefined;
-
-    const usersRef = ref(db, "users");
-    const outerUnsub = onValue(usersRef, (usersSnap) => {
+    const outerUnsub = onValue(ref(db, "users"), (usersSnap) => {
       innerUnsub?.();
-
       const currentUser = (usersSnap.val() || {})[user.uid];
       if (!currentUser) {
         setLoading(false);
         return;
       }
-
-      const recordsRef = ref(db, `patients/${patient.id}/records`);
-      innerUnsub = onValue(recordsRef, (snapshot) => {
-        const raw = snapshot.val();
-        const fetched: MedicalRecord[] = raw
-          ? Object.entries(raw)
-              .map(([id, value]: [string, any]) => {
-                const diagnosisData =
-                  value.diagnosis || value.patientDiagnosis || [];
-                return {
-                  id,
-                  recordId: value.recordId || id,
-                  ...value,
-                  patientDiagnosis: Array.isArray(diagnosisData)
-                    ? diagnosisData
-                    : [],
-                  createdAt: value.createdAt || Date.now(),
-                };
-              })
-              .filter((record) => {
-                if (currentUser.type === "admin") return true;
-                const sharedWith = record.sharedWith || [];
-                return (
-                  record.createdBy === user.uid || sharedWith.includes(user.uid)
-                );
-              })
-              .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
-          : [];
-        setRecords(fetched);
-        setLoading(false);
-      });
+      innerUnsub = onValue(
+        ref(db, `patients/${patient.id}/records`),
+        (snapshot) => {
+          const raw = snapshot.val();
+          const fetched: MedicalRecord[] = raw
+            ? Object.entries(raw)
+                .map(([id, value]: [string, any]) => {
+                  const diagnosisData =
+                    value.diagnosis || value.patientDiagnosis || [];
+                  return {
+                    id,
+                    recordId: value.recordId || id,
+                    ...value,
+                    patientDiagnosis: Array.isArray(diagnosisData)
+                      ? diagnosisData
+                      : [],
+                    createdAt: value.createdAt || Date.now(),
+                  };
+                })
+                .filter((record) => {
+                  if (currentUser.type === "admin") return true;
+                  const sharedWith = record.sharedWith || [];
+                  return (
+                    record.createdBy === user.uid ||
+                    sharedWith.includes(user.uid)
+                  );
+                })
+                .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+            : [];
+          setRecords(fetched);
+          setLoading(false);
+        },
+      );
     });
-
     return () => {
       outerUnsub();
       innerUnsub?.();
@@ -1350,12 +1426,7 @@ export function ConsultationRecords() {
   }, [user, patient?.id]);
 
   const patientName = patient ? `${patient.firstName} ${patient.lastName}` : "";
-
-  // Build columns with stable patient name reference
-  const columns = React.useMemo(
-    () => buildColumns(() => patientName),
-    [patientName],
-  );
+  const columns = React.useMemo(() => buildColumns(), []);
 
   const table = useReactTable({
     data: records,
@@ -1423,6 +1494,32 @@ export function ConsultationRecords() {
   const filteredRows = table.getFilteredRowModel().rows;
   const prescFilteredRows = prescriptionTable.getFilteredRowModel().rows;
 
+  const SparklineRow = () => {
+    const visibleHeaders = table.getHeaderGroups()[0]?.headers ?? [];
+    const SPARKLINE_EXCLUDED: VitalKey[] = ["symptoms", "bloodPressure"];
+    const hasAnySpark = visibleHeaders.some((h) =>
+      VITALS.find(
+        (v) => !SPARKLINE_EXCLUDED.includes(v.key) && v.key === h.column.id,
+      ),
+    );
+    if (!hasAnySpark || records.length < 2) return null;
+    return (
+      <TableRow className="border-b-2 border-[#00a896]/20 bg-[#f0faf9] hover:bg-[#e8f7f5]">
+        {visibleHeaders.map((header) => {
+          const vital = VITALS.find(
+            (v) =>
+              !SPARKLINE_EXCLUDED.includes(v.key) && v.key === header.column.id,
+          );
+          return (
+            <TableCell key={header.id} className="py-2 px-3 align-middle">
+              {vital ? <SparklineCell vital={vital} records={records} /> : null}
+            </TableCell>
+          );
+        })}
+      </TableRow>
+    );
+  };
+
   const Toolbar = (
     <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
       <div className="relative flex-1 sm:max-w-sm">
@@ -1433,13 +1530,13 @@ export function ConsultationRecords() {
           value={searchValue}
           onChange={(e) => {
             setSearchValue(e.target.value);
-            const col = table.getColumn("patientDiagnosis");
-            if (col) col.setFilterValue(e.target.value || undefined);
+            table
+              .getColumn("patientDiagnosis")
+              ?.setFilterValue(e.target.value || undefined);
           }}
           className="w-full pl-8 pr-3 py-2 text-sm !bg-white border border-gray-200 rounded-lg shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00a896]/40 focus:border-[#00a896] transition"
         />
       </div>
-
       {!isMobile && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -1477,131 +1574,35 @@ export function ConsultationRecords() {
     </div>
   );
 
-  const Pagination = (
+  const makePagination = (
+    tbl: ReturnType<typeof useReactTable<any>>,
+    count: number,
+    emptyLabel: string,
+  ) => (
     <div className="flex items-center justify-between pt-1 text-xs text-gray-500">
       <span>
-        {filteredRows.length === 0
-          ? "No records"
-          : `${
-              table.getState().pagination.pageIndex *
-                table.getState().pagination.pageSize +
-              1
-            }–${Math.min(
-              (table.getState().pagination.pageIndex + 1) *
-                table.getState().pagination.pageSize,
-              filteredRows.length,
-            )} of ${filteredRows.length}`}
+        {count === 0
+          ? emptyLabel
+          : `${tbl.getState().pagination.pageIndex * tbl.getState().pagination.pageSize + 1}–${Math.min(
+              (tbl.getState().pagination.pageIndex + 1) *
+                tbl.getState().pagination.pageSize,
+              count,
+            )} of ${count}`}
       </span>
       <div className="flex gap-1.5 items-center">
         <button
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
+          onClick={() => tbl.previousPage()}
+          disabled={!tbl.getCanPreviousPage()}
           className="px-3 py-1.5 text-xs font-medium rounded border !bg-[#00a896] !text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
         >
           ← {isMobile ? "" : "Previous"}
         </button>
         <span className="px-2">
-          {table.getState().pagination.pageIndex + 1} /{" "}
-          {table.getPageCount() || 1}
+          {tbl.getState().pagination.pageIndex + 1} / {tbl.getPageCount() || 1}
         </span>
         <button
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-          className="px-3 py-1.5 text-xs font-medium rounded border !bg-[#00a896] !text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
-        >
-          {isMobile ? "" : "Next"} →
-        </button>
-      </div>
-    </div>
-  );
-
-  const PrescriptionToolbar = (
-    <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-      <div className="relative flex-1 sm:max-w-sm">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Search by diagnosis or drug…"
-          value={prescSearchValue}
-          onChange={(e) => {
-            const value = e.target.value;
-            setPrescSearchValue(value);
-            prescriptionTable
-              .getColumn("diagnosis")
-              ?.setFilterValue(value || undefined);
-            prescriptionTable
-              .getColumn("drugs")
-              ?.setFilterValue(value || undefined);
-          }}
-          className="w-full pl-8 pr-3 py-2 text-sm !bg-white border border-gray-200 rounded-lg shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00a896]/40 focus:border-[#00a896] transition"
-        />
-      </div>
-
-      {!isMobile && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium !bg-[#00a896] !text-white rounded-lg shadow-sm hover:opacity-90 transition">
-              <Columns3 className="w-3.5 h-3.5" />
-              Columns
-              <ChevronDown className="w-3.5 h-3.5 opacity-70" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48">
-            <DropdownMenuLabel className="text-xs text-gray-400">
-              Toggle columns
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {prescriptionTable
-              .getAllColumns()
-              .filter((col) => col.getCanHide())
-              .map((col) => (
-                <DropdownMenuCheckboxItem
-                  key={col.id}
-                  className="capitalize text-sm"
-                  checked={col.getIsVisible()}
-                  onCheckedChange={(val) => col.toggleVisibility(val)}
-                >
-                  {col.id
-                    .replace(/([A-Z])/g, " $1")
-                    .replace(/^./, (s) => s.toUpperCase())}
-                </DropdownMenuCheckboxItem>
-              ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-    </div>
-  );
-
-  const PrescriptionPagination = (
-    <div className="flex items-center justify-between pt-1 text-xs text-gray-500">
-      <span>
-        {prescFilteredRows.length === 0
-          ? "No prescriptions"
-          : `${
-              prescriptionTable.getState().pagination.pageIndex *
-                prescriptionTable.getState().pagination.pageSize +
-              1
-            }–${Math.min(
-              (prescriptionTable.getState().pagination.pageIndex + 1) *
-                prescriptionTable.getState().pagination.pageSize,
-              prescFilteredRows.length,
-            )} of ${prescFilteredRows.length}`}
-      </span>
-      <div className="flex gap-1.5 items-center">
-        <button
-          onClick={() => prescriptionTable.previousPage()}
-          disabled={!prescriptionTable.getCanPreviousPage()}
-          className="px-3 py-1.5 text-xs font-medium rounded border !bg-[#00a896] !text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
-        >
-          ← {isMobile ? "" : "Previous"}
-        </button>
-        <span className="px-2">
-          {prescriptionTable.getState().pagination.pageIndex + 1} /{" "}
-          {prescriptionTable.getPageCount() || 1}
-        </span>
-        <button
-          onClick={() => prescriptionTable.nextPage()}
-          disabled={!prescriptionTable.getCanNextPage()}
+          onClick={() => tbl.nextPage()}
+          disabled={!tbl.getCanNextPage()}
           className="px-3 py-1.5 text-xs font-medium rounded border !bg-[#00a896] !text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
         >
           {isMobile ? "" : "Next"} →
@@ -1638,6 +1639,7 @@ export function ConsultationRecords() {
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-5 bg-gray-50 min-h-screen">
+      {/* ── Page header ── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight">
@@ -1647,7 +1649,6 @@ export function ConsultationRecords() {
             Consultation Records
           </p>
         </div>
-
         <div className="flex flex-col items-end gap-2">
           <button
             onClick={() => navigate(-1)}
@@ -1655,19 +1656,11 @@ export function ConsultationRecords() {
           >
             ← {isMobile ? "Back" : "Back to Records"}
           </button>
-          <button
-            onClick={() => setOpenUser(true)}
-            className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-semibold text-white !bg-[#00a896] rounded-lg shadow hover:opacity-90 transition"
-          >
-            + Add New Record
-          </button>
-          <AddRecordsDrawer
-            open={openUser}
-            onOpenChange={setOpenUser}
-            patient={patient}
-          />
         </div>
       </div>
+
+      {/* ── Compact patient details card ── */}
+      <PatientDetailsCard patient={patient} />
 
       <Tabs defaultValue="records" className="w-full">
         <TabsList className="!bg-gray-100">
@@ -1696,6 +1689,19 @@ export function ConsultationRecords() {
             color="text-[#00a896]"
             bg="bg-[#00a896]/10"
           />
+          <div className="items-end gap-2">
+            <button
+              onClick={() => setOpenUser(true)}
+              className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-semibold text-white !bg-[#00a896] rounded-lg shadow hover:opacity-90 transition"
+            >
+              + Add New Record
+            </button>
+            <AddRecordsDrawer
+              open={openUser}
+              onOpenChange={setOpenUser}
+              patient={patient}
+            />
+          </div>
           {Toolbar}
 
           {isMobile ? (
@@ -1711,7 +1717,6 @@ export function ConsultationRecords() {
                         key={row.id}
                         className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 space-y-3"
                       >
-                        {/* Diagnosis */}
                         <div>
                           <p className="text-[10px] uppercase text-gray-400 font-semibold mb-1">
                             Diagnosis
@@ -1738,16 +1743,12 @@ export function ConsultationRecords() {
                             </span>
                           )}
                         </div>
-
-                        {/* Risk Flags */}
                         <div>
                           <p className="text-[10px] uppercase text-gray-400 font-semibold mb-1">
                             Risk Flags
                           </p>
                           <RiskIndicators record={r} />
                         </div>
-
-                        {/* Vitals grid */}
                         <div>
                           <p className="text-[10px] uppercase text-gray-400 font-semibold mb-1.5 flex items-center gap-1">
                             Vitals
@@ -1761,8 +1762,6 @@ export function ConsultationRecords() {
                             patientName={patientName}
                           />
                         </div>
-
-                        {/* Actions */}
                         <div className="pt-2 border-t border-gray-100">
                           <ConsultationRecordActions records={r} />
                         </div>
@@ -1771,10 +1770,9 @@ export function ConsultationRecords() {
                   })}
                 </div>
               )}
-              {Pagination}
+              {makePagination(table, filteredRows.length, "No records")}
             </>
           ) : (
-            /* ── Desktop ── */
             <>
               <div className="rounded-lg border border-gray-200 overflow-hidden shadow-sm bg-white">
                 <div className="overflow-x-auto">
@@ -1799,13 +1797,12 @@ export function ConsultationRecords() {
                       ))}
                     </TableHeader>
                     <TableBody>
+                      <SparklineRow />
                       {table.getRowModel().rows.length ? (
                         table.getRowModel().rows.map((row, i) => (
                           <TableRow
                             key={row.id}
-                            className={`border-b border-gray-100 transition-colors hover:bg-[#00a896]/5 ${
-                              i % 2 === 0 ? "bg-white" : "bg-gray-50/40"
-                            }`}
+                            className={`border-b border-gray-100 transition-colors hover:bg-[#00a896]/5 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}
                           >
                             {row.getVisibleCells().map((cell) => (
                               <TableCell
@@ -1834,7 +1831,7 @@ export function ConsultationRecords() {
                   </Table>
                 </div>
               </div>
-              {Pagination}
+              {makePagination(table, filteredRows.length, "No records")}
             </>
           )}
         </TabsContent>
@@ -1848,7 +1845,6 @@ export function ConsultationRecords() {
             color="text-purple-600"
             bg="bg-purple-50"
           />
-          {prescriptionRecords.length > 0 && PrescriptionToolbar}
 
           {isMobile ? (
             <>
@@ -1892,7 +1888,6 @@ export function ConsultationRecords() {
                           </div>
                           <PrescriptionRecordActions record={r} />
                         </div>
-
                         {(p.drugs?.length ?? 0) > 0 && (
                           <div>
                             <p className="text-[10px] uppercase text-gray-400 font-semibold mb-1">
@@ -1922,7 +1917,6 @@ export function ConsultationRecords() {
                             </div>
                           </div>
                         )}
-
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs pt-2 border-t border-gray-100">
                           <div>
                             <span className="text-gray-400">Added by</span>
@@ -1942,7 +1936,12 @@ export function ConsultationRecords() {
                   })}
                 </div>
               )}
-              {prescriptionRecords.length > 0 && PrescriptionPagination}
+              {prescriptionRecords.length > 0 &&
+                makePagination(
+                  prescriptionTable,
+                  prescFilteredRows.length,
+                  "No prescriptions",
+                )}
             </>
           ) : (
             <>
@@ -1984,9 +1983,7 @@ export function ConsultationRecords() {
                               .rows.map((row, i) => (
                                 <TableRow
                                   key={row.id}
-                                  className={`border-b border-gray-100 transition-colors hover:bg-[#00a896]/5 ${
-                                    i % 2 === 0 ? "bg-white" : "bg-gray-50/40"
-                                  }`}
+                                  className={`border-b border-gray-100 transition-colors hover:bg-[#00a896]/5 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}
                                 >
                                   {row.getVisibleCells().map((cell) => (
                                     <TableCell
@@ -2017,7 +2014,11 @@ export function ConsultationRecords() {
                       </Table>
                     </div>
                   </div>
-                  {PrescriptionPagination}
+                  {makePagination(
+                    prescriptionTable,
+                    prescFilteredRows.length,
+                    "No prescriptions",
+                  )}
                 </>
               )}
             </>

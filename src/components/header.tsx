@@ -47,7 +47,7 @@ const NAV_ITEMS = [
     path: "/analytics",
   },
   {
-    label: "Users",
+    label: "Medical Staff",
     icon: Users,
     path: "/users",
   },

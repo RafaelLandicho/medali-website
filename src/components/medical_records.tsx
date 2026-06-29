@@ -1049,13 +1049,6 @@ export function MedicalRecords() {
             Manage and review patient records
           </p>
         </div>
-        <button
-          onClick={() => navigate("/add-patient")}
-          className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-semibold text-white !bg-[#00a896] rounded-lg shadow hover:opacity-90 transition"
-        >
-          <Plus className="w-4 h-4" />
-          {isMobile ? "Add" : "Add Patient"}
-        </button>
       </div>
 
       <StatsBar patients={data} isMobile={isMobile} />
@@ -1078,6 +1071,16 @@ export function MedicalRecords() {
         </>
       ) : (
         <>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => navigate("/add-patient")}
+              className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-semibold text-white !bg-[#00a896] rounded-lg shadow hover:opacity-90 transition"
+            >
+              <Plus className="w-4 h-4" />
+              {isMobile ? "Add" : "Add Patient"}
+            </button>
+          </div>
+
           <div className="rounded-lg border border-gray-200 overflow-hidden shadow-sm bg-white">
             <div className="overflow-x-auto">
               <Table className="min-w-[1000px] text-sm">

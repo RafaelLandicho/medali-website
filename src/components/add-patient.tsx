@@ -8,7 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "./ui/calendar";
-import { CalendarIcon, User, MapPin, Phone, ShieldCheck } from "lucide-react";
+import {
+  CalendarIcon,
+  User,
+  MapPin,
+  Phone,
+  ShieldCheck,
+  ClipboardList,
+  Users,
+} from "lucide-react";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import {
   InputGroup,
@@ -63,21 +71,23 @@ export function AddPatient() {
     patientLastName: "",
     patientGender: "",
     patientAge: "",
-    patientSymptoms: "",
     patientBirthdate: "",
     patientTelephone: "",
     patientAddress: "",
     patientAddress2: "",
     patientCity: "",
     patientStateProvince: "",
+    patientisMedicalCare: false,
+    patientDrugAllergy: false,
+    patientFoodAllergy: false,
+    patientTBPositive: false,
+    patientHasClinician: false,
+    patientDiet: false,
   };
 
   const [fields, setFields] = useState(initialState);
   const [openSections, setOpenSections] = useState<string[]>(["basic"]);
   const [isLoading, setIsLoading] = useState(false);
-  const [patientDiagnosis, setDiagnosis] = useState([
-    { diagnosis: "", severity: "", notes: "" },
-  ]);
   const [familyHistory, setFamilyHistory] = useState([
     {
       relation: "",
@@ -122,7 +132,36 @@ export function AddPatient() {
 
   const handleChange = (key: string, value: string | boolean) => {
     setFields((prev) => ({ ...prev, [key]: value }));
-    console.log(key, value);
+  };
+
+  // ── FAMILY HISTORY HANDLERS ──
+  const handleAddHistory = () =>
+    setFamilyHistory([
+      ...familyHistory,
+      {
+        relation: "",
+        age: "",
+        healthProblems: "",
+        goodHealth: true,
+        isAlive: true,
+      },
+    ]);
+
+  const handleRemoveHistory = (index: number) =>
+    setFamilyHistory(familyHistory.filter((_, i) => i !== index));
+
+  const handleHistoryChange = (
+    index: number,
+    key: "relation" | "age" | "healthProblems" | "goodHealth" | "isAlive",
+    value: string | boolean,
+  ) => {
+    const updated = [...familyHistory];
+    if (key === "goodHealth" || key === "isAlive") {
+      updated[index][key] = value as boolean;
+    } else {
+      updated[index][key] = value as string;
+    }
+    setFamilyHistory(updated);
   };
 
   const addPatient = async () => {
@@ -149,72 +188,49 @@ export function AddPatient() {
       const sharedWith = [user?.uid];
       if (selectedLinkedUser) sharedWith.push(selectedLinkedUser);
 
+      const patientData = {
+        patientId: patient.key,
+        firstName: fields.patientFirstName,
+        lastName: fields.patientLastName,
+        gender: fields.patientGender,
+        age: fields.patientAge,
+        birthdate: date ? date.toISOString().split("T")[0] : null,
+        telephone: fields.patientTelephone,
+        address1: fields.patientAddress,
+        address2: fields.patientAddress2,
+        city: fields.patientCity,
+        state: fields.patientStateProvince,
+        address: [
+          fields.patientAddress,
+          fields.patientAddress2,
+          fields.patientCity,
+          fields.patientStateProvince,
+        ]
+          .filter(Boolean)
+          .join(", "),
+        medicalCare: fields.patientisMedicalCare,
+        drugAllergy: fields.patientDrugAllergy,
+        foodAllergy: fields.patientFoodAllergy,
+        isTBPositive: fields.patientTBPositive,
+        hasClinician: fields.patientHasClinician,
+        diet: fields.patientDiet,
+        familyHistory: familyHistory,
+        records: {},
+        addedBy: user?.email,
+        createdBy: user?.uid,
+        createdAt: Date.now(),
+        sharedWith: sharedWith,
+      };
+
       if (userIsSecretary) {
-        await set(pending, {
-          patientId: patient.key,
-          firstName: fields.patientFirstName,
-          lastName: fields.patientLastName,
-          gender: fields.patientGender,
-          age: fields.patientAge,
-          birthdate: date ? date.toISOString().split("T")[0] : null,
-          telephone: fields.patientTelephone,
-          address1: fields.patientAddress,
-          address2: fields.patientAddress2,
-          city: fields.patientCity,
-          state: fields.patientStateProvince,
-
-          address: [
-            fields.patientAddress,
-            fields.patientAddress2,
-            fields.patientCity,
-            fields.patientStateProvince,
-          ]
-            .filter(Boolean)
-            .join(", "),
-
-          records: {},
-
-          status: "pending",
-          addedBy: user?.email,
-          createdBy: user?.uid,
-          createdAt: Date.now(),
-          sharedWith: sharedWith,
-        });
+        await set(pending, { ...patientData, status: "pending" });
         await set(newLog, {
           medicalRecordLog: `Medical Patient added for approval by ${user?.firstName} ${user?.lastName}`,
           logTime: new Date().toLocaleString(),
         });
         toast.success("Patient has been added for approval!");
       } else {
-        await set(patient, {
-          patientId: patient.key,
-          firstName: fields.patientFirstName,
-          lastName: fields.patientLastName,
-          gender: fields.patientGender,
-          age: fields.patientAge,
-          birthdate: date ? date.toISOString().split("T")[0] : null,
-          telephone: fields.patientTelephone,
-          address1: fields.patientAddress,
-          address2: fields.patientAddress2,
-          city: fields.patientCity,
-          state: fields.patientStateProvince,
-
-          address: [
-            fields.patientAddress,
-            fields.patientAddress2,
-            fields.patientCity,
-            fields.patientStateProvince,
-          ]
-            .filter(Boolean)
-            .join(", "),
-
-          records: {},
-
-          addedBy: user?.email,
-          createdBy: user?.uid,
-          createdAt: Date.now(),
-          sharedWith: sharedWith,
-        });
+        await set(patient, patientData);
         await set(newLog, {
           medicalRecordLog: `Medical Patient added by ${user?.firstName} ${user?.lastName}`,
           logTime: new Date().toLocaleString(),
@@ -223,6 +239,15 @@ export function AddPatient() {
       }
 
       setFields(initialState);
+      setFamilyHistory([
+        {
+          relation: "",
+          age: "",
+          healthProblems: "",
+          goodHealth: true,
+          isAlive: true,
+        },
+      ]);
       setSelectedLinkedUser("");
       setOpenSections(["basic"]);
     } catch (error) {
@@ -483,6 +508,277 @@ export function AddPatient() {
                     }
                   />
                 </Field>
+              </div>
+
+              {/* ── HEALTH HISTORY ── */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
+                  <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
+                    <ClipboardList className="w-4 h-4 text-[#00a896]" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg md:text-xl font-semibold text-gray-800">
+                      Health History
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      Please check if any of the following apply
+                    </p>
+                  </div>
+                </div>
+
+                <div className="divide-y rounded-xl border border-gray-200 overflow-hidden">
+                  {[
+                    {
+                      key: "patientisMedicalCare",
+                      label: "Are you presently under medical care?",
+                    },
+                    {
+                      key: "patientDrugAllergy",
+                      label: "Do you have any drug allergies?",
+                    },
+                    {
+                      key: "patientFoodAllergy",
+                      label: "Do you have any food or environmental allergies?",
+                    },
+                    {
+                      key: "patientTBPositive",
+                      label:
+                        "Have you ever had tuberculosis or a positive TB test?",
+                    },
+                    {
+                      key: "patientHasClinician",
+                      label:
+                        "Have you ever been cared for by a mental health clinician?",
+                    },
+                    {
+                      key: "patientDiet",
+                      label: "Have you ever restricted your eating?",
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.key}
+                      className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                    >
+                      <FieldLabel>{item.label}</FieldLabel>
+                      <Checkbox
+                        className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
+                        checked={
+                          fields[item.key as keyof typeof fields] as boolean
+                        }
+                        onCheckedChange={(checked) =>
+                          handleChange(item.key, checked)
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── FAMILY HISTORY ── */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
+                  <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
+                    <Users className="w-4 h-4 text-[#00a896]" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg md:text-xl font-semibold text-gray-800">
+                      Family History
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      Provide age and indicate relevant conditions
+                    </p>
+                  </div>
+                </div>
+
+                {isMobile ? (
+                  <div className="space-y-4">
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="!bg-[#00a896] text-white hover:bg-[#028090]"
+                        onClick={handleAddHistory}
+                      >
+                        + Add
+                      </Button>
+                    </div>
+                    {familyHistory.map((history, index) => (
+                      <Card
+                        key={index}
+                        className="p-4 space-y-4 border border-gray-200"
+                      >
+                        <Input
+                          placeholder="Relation"
+                          value={history.relation}
+                          onChange={(e) =>
+                            handleHistoryChange(
+                              index,
+                              "relation",
+                              e.target.value,
+                            )
+                          }
+                        />
+                        <Input
+                          placeholder="Age"
+                          value={history.age}
+                          onChange={(e) =>
+                            handleHistoryChange(index, "age", e.target.value)
+                          }
+                        />
+                        <Input
+                          placeholder="Health Problems"
+                          value={history.healthProblems}
+                          onChange={(e) =>
+                            handleHistoryChange(
+                              index,
+                              "healthProblems",
+                              e.target.value,
+                            )
+                          }
+                        />
+                        <div className="flex justify-between items-center hover:bg-gray-50 rounded-lg p-2 transition-colors">
+                          <span className="text-sm text-gray-700">
+                            In Good Health
+                          </span>
+                          <Checkbox
+                            checked={history.goodHealth}
+                            className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
+                            onCheckedChange={(checked) =>
+                              handleHistoryChange(
+                                index,
+                                "goodHealth",
+                                checked === true,
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="flex justify-between items-center hover:bg-gray-50 rounded-lg p-2 transition-colors">
+                          <span className="text-sm text-gray-700">Alive</span>
+                          <Checkbox
+                            checked={history.isAlive}
+                            className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
+                            onCheckedChange={(checked) =>
+                              handleHistoryChange(
+                                index,
+                                "isAlive",
+                                checked === true,
+                              )
+                            }
+                          />
+                        </div>
+                        {familyHistory.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="w-full !bg-red-400 text-white"
+                            onClick={() => handleRemoveHistory(index)}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-[140px_80px_1fr_120px_80px_100px] px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 rounded-lg">
+                      <span>Relation</span>
+                      <span>Age</span>
+                      <span>Health Problems</span>
+                      <span className="text-center">Good Health</span>
+                      <span className="text-center">Alive</span>
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="!bg-[#00a896] text-white hover:bg-[#028090] h-7 text-xs"
+                          onClick={handleAddHistory}
+                        >
+                          + Add
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="divide-y border border-gray-200 rounded-xl overflow-hidden">
+                      {familyHistory.map((history, index) => (
+                        <div
+                          key={index}
+                          className="grid grid-cols-[140px_80px_1fr_120px_80px_100px] items-center gap-3 p-3 hover:bg-gray-50 transition-colors"
+                        >
+                          <Input
+                            placeholder="e.g. Father"
+                            value={history.relation}
+                            onChange={(e) =>
+                              handleHistoryChange(
+                                index,
+                                "relation",
+                                e.target.value,
+                              )
+                            }
+                          />
+                          <Input
+                            placeholder="Age"
+                            value={history.age}
+                            onChange={(e) =>
+                              handleHistoryChange(index, "age", e.target.value)
+                            }
+                          />
+                          <Input
+                            placeholder="Health Problems"
+                            value={history.healthProblems}
+                            onChange={(e) =>
+                              handleHistoryChange(
+                                index,
+                                "healthProblems",
+                                e.target.value,
+                              )
+                            }
+                          />
+                          <div className="flex justify-center">
+                            <Checkbox
+                              checked={history.goodHealth}
+                              className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
+                              onCheckedChange={(checked) =>
+                                handleHistoryChange(
+                                  index,
+                                  "goodHealth",
+                                  checked === true,
+                                )
+                              }
+                            />
+                          </div>
+                          <div className="flex justify-center">
+                            <Checkbox
+                              checked={history.isAlive}
+                              className="size-5 border-gray-300 data-[state=unchecked]:!bg-gray-200 data-[state=checked]:!bg-[#00a896]"
+                              onCheckedChange={(checked) =>
+                                handleHistoryChange(
+                                  index,
+                                  "isAlive",
+                                  checked === true,
+                                )
+                              }
+                            />
+                          </div>
+                          <div className="flex justify-end">
+                            {familyHistory.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                className="!bg-red-400 text-white h-8 text-xs"
+                                onClick={() => handleRemoveHistory(index)}
+                              >
+                                Remove
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* ── PRIVACY NOTICE ── */}

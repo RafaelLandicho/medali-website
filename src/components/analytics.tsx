@@ -2,8 +2,6 @@
 
 import * as React from "react";
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -12,7 +10,6 @@ import {
   Pie,
   Cell,
   CartesianGrid,
-  LabelList,
   AreaChart,
   Area,
 } from "recharts";
@@ -20,15 +17,13 @@ import {
 import { db } from "@/firebaseConfig";
 import { ref, onValue } from "firebase/database";
 import { useAuth } from "@/auth/authprovider";
-
-import { Button } from "@/components/ui/button";
+import { Search } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "./ui/calendar";
-
 import {
   Activity,
   Download,
@@ -38,8 +33,17 @@ import {
   Users,
   Pill,
   Stethoscope,
-  ClipboardList,
+  FileText,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import html2canvas from "html2canvas-pro";
+import jsPDF from "jspdf";
 
 // ─── Color palette ─────────────────────────────────────────────────────────────
 const CHART_COLORS = [
@@ -75,7 +79,6 @@ interface AnalyticsState {
   trendByDiagnosis: Record<string, AnalyticsData[]>;
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
 const mapToArray = (map: Record<string, number>): AnalyticsData[] =>
   Object.entries(map)
     .map(([label, count]) => ({ label, count }))
@@ -148,92 +151,320 @@ const getDiagnosisTrend = (
     );
 };
 
-const exportToCSV = (data: AnalyticsData[], filename: string) => {
-  const csv = [
-    "Label,Count",
-    ...data.map((d) => `"${d.label}",${d.count}`),
-  ].join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${filename}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-};
+function ReportDocument({
+  analytics,
+  generatedAt,
+  dateRange,
+}: {
+  analytics: AnalyticsState;
+  generatedAt: string;
+  dateRange: string;
+}) {
+  const totalPatients = analytics.genders.reduce((s, d) => s + d.count, 0);
+  const totalDiagnoses = analytics.diagnoses.reduce((s, d) => s + d.count, 0);
+  const totalPrescriptions = analytics.prescriptions.reduce(
+    (s, d) => s + d.count,
+    0,
+  );
+  const maleCount =
+    analytics.genders.find((g) => g.label.toLowerCase() === "male")?.count ?? 0;
+  const femaleCount =
+    analytics.genders.find((g) => g.label.toLowerCase() === "female")?.count ??
+    0;
 
-// ─── Shared chart components ───────────────────────────────────────────────────
+  const ReportSection = ({
+    title,
+    color = "#00a896",
+  }: {
+    title: string;
+    color?: string;
+  }) => (
+    <div
+      className="px-2 py-1.5 mb-4 font-bold text-white text-sm rounded-sm uppercase tracking-wide"
+      style={{ backgroundColor: color }}
+    >
+      {title}
+    </div>
+  );
 
-function Top5BarChart({ data }: { data: AnalyticsData[] }) {
-  const top5 = data.slice(0, 5);
-  const othersCount = data.slice(5).reduce((s, d) => s + d.count, 0);
-  const chartData =
-    othersCount > 0 ? [...top5, { label: "Others", count: othersCount }] : top5;
+  const TableSection = ({
+    title,
+    data,
+    color = "#00a896",
+  }: {
+    title: string;
+    data: AnalyticsData[];
+    color?: string;
+  }) => {
+    const top5 = data.slice(0, 5);
+    const total = data.reduce((s, d) => s + d.count, 0);
+    if (!top5.length) return null;
+    return (
+      <div className="mb-6">
+        <p className="font-bold text-sm mb-2" style={{ color }}>
+          {title}
+        </p>
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr style={{ backgroundColor: color + "15" }}>
+              <th className="text-left p-2 font-bold" style={{ color }}>
+                #
+              </th>
+              <th className="text-left p-2 font-bold" style={{ color }}>
+                Name
+              </th>
+              <th className="text-right p-2 font-bold" style={{ color }}>
+                Count
+              </th>
+              <th className="text-right p-2 font-bold" style={{ color }}>
+                %
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {top5.map((item, i) => (
+              <tr
+                key={i}
+                className="border-b"
+                style={{ borderColor: color + "20" }}
+              >
+                <td className="p-2 font-bold" style={{ color }}>
+                  {i + 1}
+                </td>
+                <td className="p-2 text-[#004d45] font-semibold">
+                  {item.label}
+                </td>
+                <td className="p-2 text-right font-bold text-[#004d45]">
+                  {item.count}
+                </td>
+                <td className="p-2 text-right text-gray-500">
+                  {total > 0 ? ((item.count / total) * 100).toFixed(1) : 0}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart
-        data={chartData}
-        barCategoryGap="25%"
-        margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
-      >
-        <CartesianGrid
-          strokeDasharray="3 3"
-          stroke="#f0f0f0"
-          vertical={false}
-        />
-        <XAxis
-          dataKey="label"
-          tick={{ fill: "#000000", fontSize: 12, fontWeight: 600 }}
-          axisLine={{ stroke: "#e5e7eb" }}
-          tickLine={false}
-          interval={0}
-          tickFormatter={(v: string) =>
-            v.length > 12 ? v.slice(0, 11) + "…" : v
-          }
-        />
-        <YAxis
-          tick={{ fill: "#000000", fontSize: 12, fontWeight: 600 }}
-          axisLine={false}
-          tickLine={false}
-          allowDecimals={false}
-        />
-        <Tooltip
-          contentStyle={{
-            backgroundColor: "#ffffff",
-            border: "1px solid #e5e7eb",
-            borderRadius: "8px",
-            color: "#000000",
-            fontSize: "13px",
-            fontWeight: 600,
-            boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-          }}
-          labelStyle={{ color: "#000000", marginBottom: 4, fontWeight: 700 }}
-          cursor={{ fill: "rgba(0,0,0,0.03)" }}
-        />
-        <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-          <LabelList
-            dataKey="count"
-            position="top"
-            fill="#000000"
-            fontSize={12}
-            fontWeight={700}
-          />
-          {chartData.map((entry, i) => (
-            <Cell
-              key={i}
-              fill={
-                entry.label === "Others"
-                  ? "#9ca3af"
-                  : CHART_COLORS[i % CHART_COLORS.length]
-              }
+    <div
+      className="w-full bg-white text-[#004d45] font-sans"
+      style={{ minWidth: 794 }}
+    >
+      <div className="text-center pt-10 pb-4 px-10 bg-gradient-to-br from-[#00a896]/10 to-white">
+        <div className="flex justify-center mb-3">
+          <div className="bg-[#00a896]/10 rounded-full p-3">
+            <FileText className="w-8 h-8 text-[#00a896]" />
+          </div>
+        </div>
+        <h1 className="text-3xl font-bold tracking-wide text-[#00a896] uppercase">
+          Medical Analytics Report
+        </h1>
+        <p className="text-xs text-[#007a6e]/60 mt-1 tracking-widest uppercase">
+          Confidential — Internal Use Only
+        </p>
+        <p className="text-sm font-semibold text-[#004d45] mt-2">
+          Generated: {generatedAt}
+        </p>
+        {dateRange && (
+          <p className="text-xs text-gray-500 mt-0.5">Period: {dateRange}</p>
+        )}
+      </div>
+      <div className="flex w-full h-3 mb-8">
+        <div className="w-1/2 bg-[#00a896]" />
+        <div className="w-1/2 bg-[#ffd166]" />
+      </div>
+      <div className="px-10 space-y-8">
+        <div>
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            {[
+              {
+                label: "Total Patients",
+                value: totalPatients,
+                color: "#378add",
+              },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-lg border p-3 text-center"
+                style={{
+                  borderColor: stat.color + "30",
+                  backgroundColor: stat.color + "08",
+                }}
+              >
+                <p
+                  className="text-xs font-bold uppercase tracking-wide"
+                  style={{ color: stat.color }}
+                >
+                  {stat.label}
+                </p>
+                <p className="text-2xl font-extrabold text-[#004d45] mt-1">
+                  {stat.value.toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-lg border border-[#00a896]/20 bg-[#00a896]/5 p-4 mt-4">
+            <p className="font-bold text-sm text-[#00a896] mb-2">
+              Key Insights
+            </p>
+            <ul className="space-y-1.5 text-sm text-[#004d45]">
+              {analytics.diagnoses[0] && (
+                <li>
+                  • Most common diagnosis:{" "}
+                  <strong>{analytics.diagnoses[0].label}</strong> (
+                  {analytics.diagnoses[0].count} cases,{" "}
+                  {totalDiagnoses > 0
+                    ? (
+                        (analytics.diagnoses[0].count / totalDiagnoses) *
+                        100
+                      ).toFixed(1)
+                    : 0}
+                  % of all records)
+                </li>
+              )}
+              {(maleCount > 0 || femaleCount > 0) && (
+                <li>
+                  • Gender split: <strong>{maleCount} male</strong> /{" "}
+                  <strong>{femaleCount} female</strong> patients
+                  {totalPatients > 0
+                    ? ` (${((maleCount / totalPatients) * 100).toFixed(1)}% / ${((femaleCount / totalPatients) * 100).toFixed(1)}%)`
+                    : ""}
+                </li>
+              )}
+              {analytics.prescriptions[0] && (
+                <li>
+                  • Top prescription diagnosis:{" "}
+                  <strong>{analytics.prescriptions[0].label}</strong> (
+                  {analytics.prescriptions[0].count} cases)
+                </li>
+              )}
+              {analytics.male[0] && (
+                <li>
+                  • Top male diagnosis:{" "}
+                  <strong>{analytics.male[0].label}</strong> (
+                  {analytics.male[0].count} cases)
+                </li>
+              )}
+              {analytics.female[0] && (
+                <li>
+                  • Top female diagnosis:{" "}
+                  <strong>{analytics.female[0].label}</strong> (
+                  {analytics.female[0].count} cases)
+                </li>
+              )}
+            </ul>
+          </div>
+        </div>
+        <div>
+          <ReportSection title="Patient Demographics" color="#378add" />
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <p className="font-bold text-sm text-[#378add] mb-2">
+                Gender Distribution
+              </p>
+              <table className="w-full border-collapse text-xs">
+                <thead>
+                  <tr className="bg-[#378add]/10">
+                    <th className="text-left p-2 font-bold text-[#378add]">
+                      Gender
+                    </th>
+                    <th className="text-right p-2 font-bold text-[#378add]">
+                      Count
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.genders.map((g, i) => (
+                    <tr key={i} className="border-b border-[#378add]/10">
+                      <td className="p-2 font-semibold text-[#004d45]">
+                        {g.label}
+                      </td>
+                      <td className="p-2 text-right font-bold text-[#004d45]">
+                        {g.count}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <p className="font-bold text-sm text-[#378add] mb-2">
+                Age Distribution (Top 5)
+              </p>
+              <table className="w-full border-collapse text-xs">
+                <thead>
+                  <tr className="bg-[#378add]/10">
+                    <th className="text-left p-2 font-bold text-[#378add]">
+                      Age
+                    </th>
+                    <th className="text-right p-2 font-bold text-[#378add]">
+                      Count
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.ages.slice(0, 5).map((a, i) => (
+                    <tr key={i} className="border-b border-[#378add]/10">
+                      <td className="p-2 font-semibold text-[#004d45]">
+                        {a.label} yrs old
+                      </td>
+                      <td className="p-2 text-right font-bold text-[#004d45]">
+                        {a.count}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div>
+          <ReportSection title="Diagnosis Analysis" color="#00a896" />
+          <div className="grid grid-cols-2 gap-6">
+            <TableSection
+              title="Top Diagnoses — Consultation Records"
+              data={analytics.diagnoses}
+              color="#00a896"
             />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+            <TableSection
+              title="Top Diagnoses — Prescriptions"
+              data={analytics.prescriptions}
+              color="#378add"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-6 mt-2">
+            <TableSection
+              title="Top Diagnoses — Male Patients"
+              data={analytics.male}
+              color="#378add"
+            />
+            <TableSection
+              title="Top Diagnoses — Female Patients"
+              data={analytics.female}
+              color="#d4537e"
+            />
+          </div>
+        </div>
+      </div>
+      <div className="px-10 mt-12 pb-10">
+        <div className="border-t-2 border-[#00a896] pt-4 flex items-center justify-between text-xs text-gray-400">
+          <span>Medali Medical Records System</span>
+          <span>Generated: {generatedAt}</span>
+          <span>Confidential</span>
+        </div>
+      </div>
+      <div className="flex w-full h-3">
+        <div className="w-1/2 bg-[#00a896]" />
+        <div className="w-1/2 bg-[#ffd166]" />
+      </div>
+    </div>
   );
 }
 
+// ─── Pie chart ─────────────────────────────────────────────────────────────────
 function Top5PieChart({ data }: { data: AnalyticsData[] }) {
   const top5 = data.slice(0, 5);
   const othersCount = data.slice(5).reduce((s, d) => s + d.count, 0);
@@ -242,7 +473,7 @@ function Top5PieChart({ data }: { data: AnalyticsData[] }) {
   const total = chartData.reduce((s, d) => s + d.count, 0);
   return (
     <div className="flex flex-col gap-3">
-      <ResponsiveContainer width="100%" height={180}>
+      <ResponsiveContainer width="100%" height={180} className="!bg-[#e2e8f0]">
         <PieChart>
           <Pie
             data={chartData}
@@ -262,7 +493,7 @@ function Top5PieChart({ data }: { data: AnalyticsData[] }) {
                     ? "#9ca3af"
                     : CHART_COLORS[i % CHART_COLORS.length]
                 }
-                stroke="#ffffff"
+                stroke="#302828"
                 strokeWidth={2}
               />
             ))}
@@ -270,25 +501,25 @@ function Top5PieChart({ data }: { data: AnalyticsData[] }) {
           <Tooltip
             contentStyle={{
               backgroundColor: "#ffffff",
-              border: "1px solid #e5e7eb",
+              border: "1px solid #101011",
               borderRadius: "8px",
               color: "#000000",
               fontSize: "13px",
               fontWeight: 600,
-              boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
             }}
           />
         </PieChart>
       </ResponsiveContainer>
-      <div className="space-y-1.5">
+      {/* Legend rows — dark background with bigger font */}
+      <div className="space-y-1 rounded-lg bg-[#e2e8f0] px-3 py-2">
         {chartData.map((d, i) => (
           <div
             key={i}
-            className="flex items-center justify-between gap-2 text-xs"
+            className="flex items-center justify-between gap-2 text-sm"
           >
             <div className="flex items-center gap-2 min-w-0">
               <span
-                className="h-2 w-2 rounded-full flex-shrink-0"
+                className="h-2.5 w-2.5 rounded-full flex-shrink-0"
                 style={{
                   backgroundColor:
                     d.label === "Others"
@@ -296,13 +527,15 @@ function Top5PieChart({ data }: { data: AnalyticsData[] }) {
                       : CHART_COLORS[i % CHART_COLORS.length],
                 }}
               />
-              <span className="text-black font-semibold truncate">
+              <span className="text-gray-800 font-semibold truncate text-sm">
                 {d.label}
               </span>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
-              <span className="text-black font-bold">{d.count}</span>
-              <span className="text-gray-500 font-semibold w-12 text-right">
+              <span className="text-gray-900 font-bold text-base">
+                {d.count}
+              </span>
+              <span className="text-gray-600 font-semibold w-12 text-right text-sm">
                 {((d.count / total) * 100).toFixed(1)}%
               </span>
             </div>
@@ -313,90 +546,258 @@ function Top5PieChart({ data }: { data: AnalyticsData[] }) {
   );
 }
 
+// ─── Full list dialog ──────────────────────────────────────────────────────────
+function FullListDialog({
+  open,
+  onOpenChange,
+  data,
+  title,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  data: AnalyticsData[];
+  title: string;
+}) {
+  const [search, setSearch] = React.useState("");
+  const [currentPage, setCurrentPage] = React.useState(0);
+  const pageSize = 10;
+  const filtered = React.useMemo(() => {
+    if (!search) return data;
+    const s = search.toLowerCase();
+    return data.filter((d) => d.label.toLowerCase().includes(s));
+  }, [data, search]);
+  const totalItems = filtered.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const start = currentPage * pageSize;
+  const pageItems = filtered.slice(start, start + pageSize);
+  const totalCount = data.reduce((sum, d) => sum + d.count, 0);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] bg-white border-gray-200 flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="text-gray-800">{title}</DialogTitle>
+          <DialogDescription className="text-gray-400 text-sm">
+            {data.length} entries · {totalCount} total occurrences
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 flex-1 overflow-hidden">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search…"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(0);
+              }}
+              className="w-full pl-8 pr-3 py-1.5 text-sm !bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00a896]/40"
+            />
+          </div>
+          <div className="flex-1 overflow-auto border border-gray-200 rounded-lg">
+            <table className="w-full text-sm">
+              <thead className="bg-[#1a1a2e] text-gray-100 sticky top-0">
+                <tr>
+                  <th className="text-left py-2 px-3 font-semibold text-xs uppercase tracking-wider">
+                    #
+                  </th>
+                  <th className="text-left py-2 px-3 font-semibold text-xs uppercase tracking-wider">
+                    Label
+                  </th>
+                  <th className="text-right py-2 px-3 font-semibold text-xs uppercase tracking-wider">
+                    Count
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="text-center py-8 text-gray-400">
+                      No results
+                    </td>
+                  </tr>
+                ) : (
+                  pageItems.map((item, i) => (
+                    <tr
+                      key={i}
+                      className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                    >
+                      <td className="py-2 px-3 text-gray-400">
+                        {start + i + 1}
+                      </td>
+                      <td className="py-2 px-3 font-medium text-gray-800">
+                        {item.label}
+                      </td>
+                      <td className="py-2 px-3 text-right font-bold text-gray-800">
+                        {item.count}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between text-xs text-gray-500 pt-1">
+              <span>
+                {start + 1}–{Math.min(start + pageSize, totalItems)} of{" "}
+                {totalItems}
+              </span>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+                  disabled={currentPage === 0}
+                  className="px-3 py-1 rounded border !bg-[#00a896] !text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  ← Prev
+                </button>
+                <span className="px-2">
+                  {currentPage + 1} / {totalPages}
+                </span>
+                <button
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages - 1, p + 1))
+                  }
+                  disabled={currentPage === totalPages - 1}
+                  className="px-3 py-1 rounded border !bg-[#00a896] !text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Bar list ──────────────────────────────────────────────────────────────────
 function BarList({
   data,
   onItemClick,
-  exportFilename,
-  showExport = false,
   title,
   description,
 }: {
   data: AnalyticsData[];
   onItemClick?: (label: string) => void;
-  exportFilename?: string;
-  showExport?: boolean;
   title: string;
   description?: string;
 }) {
-  const [showAll, setShowAll] = React.useState(false);
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [searchTerm, setSearchTerm] = React.useState("");
   const total = data.reduce((s, d) => s + d.count, 0);
-  const display = showAll ? data : data.slice(0, 8);
+  const top5 = data.slice(0, 5);
+
+  // Filter data based on search term (case‑insensitive)
+  const filtered = React.useMemo(() => {
+    if (!searchTerm.trim()) return [];
+    const s = searchTerm.toLowerCase().trim();
+    return data.filter((d) => d.label.toLowerCase().includes(s));
+  }, [data, searchTerm]);
+
+  // Decide what to display: filtered results if searching, otherwise top 5
+  const displayData = searchTerm.trim() ? filtered : top5;
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start justify-between">
-        <div>
-          {title && <h3 className="text-base font-bold text-black">{title}</h3>}
-          {description && (
-            <p className="text-sm text-gray-500 font-medium mt-0.5">
-              {description}
-            </p>
-          )}
-        </div>
-        {showExport && exportFilename && (
+      <div>
+        {title && (
+          <h3 className="text-base font-bold text-gray-900">{title}</h3>
+        )}
+        {description && (
+          <p className="text-sm text-gray-600 font-medium mt-0.5">
+            {description}
+          </p>
+        )}
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search ..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-8 pr-3 py-1.5 text-sm !bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00a896]/40"
+        />
+        {searchTerm && (
           <button
-            onClick={() => exportToCSV(data, exportFilename)}
-            className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#00a896] !bg-[#00c4b4] text-white transition-colors px-2 py-1 rounded font-semibold"
+            onClick={() => setSearchTerm("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
           >
-            <Download className="h-3 w-3" />
-            CSV
+            <X className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
-      <div className="space-y-1.5">
-        {display.map((item, i) => (
-          <div
-            key={i}
-            onClick={() => onItemClick?.(item.label)}
-            className={`flex items-center gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2 transition-all ${
-              onItemClick
-                ? "cursor-pointer hover:bg-gray-50 hover:border-gray-300 group"
-                : ""
-            }`}
-          >
-            <span
-              className="h-2 w-2 rounded-full flex-shrink-0"
-              style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
-            />
-            <span
-              className={`text-sm font-bold flex-1 truncate ${onItemClick ? "text-black group-hover:text-[#00a896]" : "text-black"}`}
+
+      <div
+        className={`rounded-lg bg-slate-100 p-2 space-y-1.5 ${
+          searchTerm.trim() ? "max-h-[300px] overflow-y-auto" : ""
+        }`}
+      >
+        {displayData.length === 0 ? (
+          <p className="text-sm text-gray-500 text-center py-4">
+            {searchTerm ? "No matching diagnoses" : "No data"}
+          </p>
+        ) : (
+          displayData.map((item, i) => (
+            <div
+              key={i}
+              onClick={() => onItemClick?.(item.label)}
+              className={`flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 transition-all shadow-sm ${
+                onItemClick
+                  ? "cursor-pointer hover:bg-slate-50 hover:border-slate-300 group"
+                  : ""
+              }`}
             >
-              {item.label}
-            </span>
-            <span className="text-sm font-bold text-black w-14 text-right">
-              {item.count}
-            </span>
-            <span className="text-sm font-semibold text-gray-500 w-10 text-right">
-              {((item.count / total) * 100).toFixed(1)}%
-            </span>
-          </div>
-        ))}
+              <span
+                className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                style={{
+                  backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+                }}
+              />
+              <span
+                className={`text-base font-bold flex-1 truncate ${
+                  onItemClick
+                    ? "text-gray-900 group-hover:text-[#00a896]"
+                    : "text-gray-900"
+                }`}
+              >
+                {item.label}
+              </span>
+              <span className="text-base font-bold text-gray-900 w-14 text-right tabular-nums">
+                {item.count}
+              </span>
+              <span className="text-sm font-semibold text-gray-500 w-12 text-right tabular-nums">
+                {((item.count / total) * 100).toFixed(1)}%
+              </span>
+            </div>
+          ))
+        )}
       </div>
-      {data.length > 8 && (
+
+      {}
+      {!searchTerm && data.length > 5 && (
         <button
-          onClick={() => setShowAll(!showAll)}
-          className="w-full text-sm font-bold !bg-[#00a896] text-white hover:opacity-80 py-1.5 flex items-center justify-center gap-1 transition-opacity"
+          onClick={() => setDialogOpen(true)}
+          className="w-full text-sm font-bold !bg-[#00a896] text-white hover:opacity-80 py-1.5 flex items-center justify-center gap-1 transition-opacity rounded"
         >
-          {showAll ? "Show less" : `Show all ${data.length} records`}
-          <ChevronDownIcon
-            className={`h-3 w-3 transition-transform ${showAll ? "rotate-180" : ""}`}
-          />
+          Show all records
         </button>
       )}
+
+      <FullListDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        data={data}
+        title={title || "Full list"}
+      />
     </div>
   );
 }
 
+// ─── Trend chart ───────────────────────────────────────────────────────────────
 function TrendChart({
   seriesMap,
   selected,
@@ -410,10 +811,10 @@ function TrendChart({
 }) {
   if (!selected.length) {
     return (
-      <div className="flex flex-col items-center justify-center h-32 text-gray-500 text-sm gap-2">
-        <TrendingUp className="h-6 w-6 opacity-30" />
-        <span className="text-sm font-semibold">
-          Click any row above to view its monthly trend
+      <div className="flex flex-col items-center justify-center h-full min-h-[220px] rounded-lg bg-slate-100 text-gray-500 text-sm gap-2">
+        <TrendingUp className="h-8 w-8 opacity-30" />
+        <span className="text-sm font-semibold text-center px-4">
+          Click any row in the list to view its monthly trend here
         </span>
       </div>
     );
@@ -435,18 +836,18 @@ function TrendChart({
   });
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
+    <div className="space-y-3 h-full flex flex-col">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex flex-wrap gap-2">
           {selected.map((name, i) => (
             <span
               key={name}
               onClick={() => onToggle?.(name)}
-              className="flex items-center gap-1.5 text-sm font-bold px-2 py-1 rounded-full cursor-pointer border transition-colors"
+              className="flex items-center gap-1.5 text-xs font-bold px-2 py-1 rounded-full cursor-pointer border transition-colors"
               style={{
-                backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + "15",
+                backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + "20",
                 color: CHART_COLORS[i % CHART_COLORS.length],
-                borderColor: CHART_COLORS[i % CHART_COLORS.length] + "40",
+                borderColor: CHART_COLORS[i % CHART_COLORS.length] + "50",
               }}
             >
               {name} <X className="h-3 w-3 opacity-60" />
@@ -456,92 +857,99 @@ function TrendChart({
         {selected.length > 0 && (
           <button
             onClick={onClear}
-            className="text-sm font-bold text-gray-500 hover:text-red-400 transition-colors px-2 py-1 flex items-center gap-1"
+            className="text-xs font-bold !bg-white text-red-500 !border-red-200 hover:text-red-400 transition-colors px-2 py-1 flex items-center gap-1"
           >
             <X className="h-3 w-3" /> Clear
           </button>
         )}
       </div>
-      <ResponsiveContainer width="100%" height={220}>
-        <AreaChart
-          data={merged}
-          margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-        >
-          <defs>
-            {selected.map((name, i) => (
-              <linearGradient
-                key={name}
-                id={`grad-${i}`}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop
-                  offset="5%"
-                  stopColor={CHART_COLORS[i % CHART_COLORS.length]}
-                  stopOpacity={0.15}
-                />
-                <stop
-                  offset="95%"
-                  stopColor={CHART_COLORS[i % CHART_COLORS.length]}
-                  stopOpacity={0}
-                />
-              </linearGradient>
-            ))}
-          </defs>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="#f0f0f0"
-            vertical={false}
-          />
-          <XAxis
-            dataKey="month"
-            tick={{ fill: "#000000", fontSize: 12, fontWeight: 600 }}
-            axisLine={{ stroke: "#e5e7eb" }}
-            tickLine={false}
-          />
-          <YAxis
-            tick={{ fill: "#000000", fontSize: 12, fontWeight: 600 }}
-            axisLine={false}
-            tickLine={false}
-            allowDecimals={false}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "#ffffff",
-              border: "1px solid #e5e7eb",
-              borderRadius: "8px",
-              color: "#000000",
-              fontSize: "13px",
-              fontWeight: 600,
-              boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-            }}
-            labelStyle={{ color: "#000000", marginBottom: 4, fontWeight: 700 }}
-          />
-          {selected.map((name, i) => (
-            <Area
-              key={name}
-              type="monotone"
-              dataKey={name}
-              stroke={CHART_COLORS[i % CHART_COLORS.length]}
-              strokeWidth={2}
-              fill={`url(#grad-${i})`}
-              dot={{
-                r: 3,
-                fill: CHART_COLORS[i % CHART_COLORS.length],
-                strokeWidth: 0,
-              }}
-              activeDot={{ r: 5 }}
+      {/* ── Chart on slate-100 so axes/labels pop ── */}
+      <div className="flex-1 rounded-lg bg-slate-100 p-3">
+        <ResponsiveContainer width="100%" height={220}>
+          <AreaChart
+            data={merged}
+            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+          >
+            <defs>
+              {selected.map((name, i) => (
+                <linearGradient
+                  key={name}
+                  id={`grad-${i}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop
+                    offset="5%"
+                    stopColor={CHART_COLORS[i % CHART_COLORS.length]}
+                    stopOpacity={0.25}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor={CHART_COLORS[i % CHART_COLORS.length]}
+                    stopOpacity={0.02}
+                  />
+                </linearGradient>
+              ))}
+            </defs>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="#cbd5e1"
+              vertical={false}
             />
-          ))}
-        </AreaChart>
-      </ResponsiveContainer>
+            <XAxis
+              dataKey="month"
+              tick={{ fill: "#1e293b", fontSize: 11, fontWeight: 600 }}
+              axisLine={{ stroke: "#94a3b8" }}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fill: "#1e293b", fontSize: 11, fontWeight: 600 }}
+              axisLine={false}
+              tickLine={false}
+              allowDecimals={false}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                color: "#0f172a",
+                fontSize: "13px",
+                fontWeight: 600,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+              }}
+              labelStyle={{
+                color: "#0f172a",
+                marginBottom: 4,
+                fontWeight: 700,
+              }}
+            />
+            {selected.map((name, i) => (
+              <Area
+                key={name}
+                type="monotone"
+                dataKey={name}
+                stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                strokeWidth={2.5}
+                fill={`url(#grad-${i})`}
+                dot={{
+                  r: 3.5,
+                  fill: CHART_COLORS[i % CHART_COLORS.length],
+                  strokeWidth: 0,
+                }}
+                activeDot={{ r: 5 }}
+              />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
 
-// ─── Section wrapper ───────────────────────────────────────────────────────────
+// ─── Shared layout ─────────────────────────────────────────────────────────────
 function SectionCard({
   title,
   icon: Icon,
@@ -562,7 +970,7 @@ function SectionCard({
         >
           <Icon className="h-4 w-4" style={{ color: iconColor }} />
         </div>
-        <h2 className="text-base font-bold text-black">{title}</h2>
+        <h2 className="text-base font-bold text-gray-900">{title}</h2>
       </div>
       <div className="p-5">{children}</div>
     </div>
@@ -577,9 +985,9 @@ function SubCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-gray-100 bg-gray-50/50 overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-gray-100 bg-white">
-        <p className="text-xs font-bold uppercase tracking-wider text-black">
+    <div className="rounded-lg border border-slate-200 bg-slate-100 overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-200">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-700">
           {title}
         </p>
       </div>
@@ -588,21 +996,19 @@ function SubCard({
   );
 }
 
-// ─── Stat pill ─────────────────────────────────────────────────────────────────
 function StatPill({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex flex-col items-center px-4 py-2.5 rounded-lg border border-gray-200 bg-white shadow-sm">
-      <span className="text-xs uppercase tracking-wider text-black font-bold">
+    <div className="flex flex-col items-center px-5 py-3 rounded-lg border border-slate-300 bg-slate-100 shadow-sm">
+      <span className="text-sm uppercase tracking-wider text-slate-600 font-bold">
         {label}
       </span>
-      <span className="text-2xl font-extrabold text-black">
+      <span className="text-3xl font-extrabold text-slate-900">
         {value.toLocaleString()}
       </span>
     </div>
   );
 }
 
-// ─── Top1 Banner ───────────────────────────────────────────────────────────────
 function Top1Banner({
   label,
   value,
@@ -614,16 +1020,16 @@ function Top1Banner({
 }) {
   return (
     <div
-      className="flex flex-col px-4 py-3 rounded-lg border shadow-sm"
-      style={{ borderColor: color + "40", backgroundColor: color + "08" }}
+      className="flex flex-col px-4 py-3 rounded-lg border shadow-sm flex-1 min-w-[180px]"
+      style={{ borderColor: color + "50", backgroundColor: color + "12" }}
     >
       <span
-        className="text-xs uppercase tracking-wider font-bold"
+        className="text-sm uppercase tracking-wider font-bold"
         style={{ color }}
       >
         {label}
       </span>
-      <span className="text-lg font-extrabold text-black truncate mt-0.5">
+      <span className="text-2xl font-extrabold text-gray-900 truncate mt-0.5">
         {value || "—"}
       </span>
     </div>
@@ -634,6 +1040,9 @@ function Top1Banner({
 export function Analytics() {
   const { user } = useAuth();
   const [loading, setLoading] = React.useState(true);
+  const [reportOpen, setReportOpen] = React.useState(false);
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  const reportRef = React.useRef<HTMLDivElement>(null);
 
   const [startDate, setStartDate] = React.useState<Date>();
   const [endDate, setEndDate] = React.useState<Date>();
@@ -643,7 +1052,6 @@ export function Analytics() {
   const [selectedAgeGroup, setSelectedAgeGroup] = React.useState<
     "general" | "infant" | "teen" | "adult" | "middleage" | "senior"
   >("general");
-
   const [diagnosisTrends, setDiagnosisTrends] = React.useState<string[]>([]);
   const [prescriptionTrends, setPrescriptionTrends] = React.useState<string[]>(
     [],
@@ -719,20 +1127,54 @@ export function Analytics() {
 
   React.useEffect(() => {
     if (!user) return;
-    const patientRef = ref(db, "patients");
-    const prescriptionRef = ref(db, "prescriptions");
 
-    const unsubPatients = onValue(patientRef, (snapshot) => {
-      const data = snapshot.val();
-      if (!data) {
+    const unsubPatients = onValue(ref(db, "patients"), (snapshot) => {
+      const raw = snapshot.val();
+      if (!raw) {
         setLoading(false);
         return;
       }
 
-      const all: any[] = Object.values(data);
-      const filtered = filterByDate(all);
-      filteredPatientsRef.current = filtered;
+      // ── 1. All top-level patient objects ────────────────────────────
+      const allPatients: any[] = Object.values(raw);
 
+      // ── 2. Flatten every consultation record, tagging it with the
+      //       parent patient's gender & age so demographic breakdowns work ──
+      const allRecords: any[] = [];
+      const allPrescriptions: any[] = [];
+
+      allPatients.forEach((patient: any) => {
+        if (!patient?.records || typeof patient.records !== "object") return;
+        Object.values(patient.records).forEach((record: any) => {
+          if (!record) return;
+
+          // Attach patient demographics so we can slice by gender/age later
+          allRecords.push({
+            ...record,
+            gender: patient.gender,
+            age: patient.age,
+          });
+
+          // Prescription lives as a child of the record
+          if (record.prescription) {
+            allPrescriptions.push({
+              ...record.prescription,
+              // Carry the record's timestamp so date-filtering works
+              createdAt: record.createdAt,
+            });
+          }
+        });
+      });
+
+      // ── 3. Apply optional date filter ────────────────────────────────
+      const filteredPatients = filterByDate(allPatients); // for gender / age pills
+      const filteredRecords = filterByDate(allRecords); // for diagnoses & trends
+      const filteredPrescriptions = filterByDate(allPrescriptions); // for Rx section
+
+      // Keep a ref so on-demand trend lookups use the latest filtered set
+      filteredPatientsRef.current = filteredRecords;
+
+      // ── 4. Demographic × diagnosis breakdown ─────────────────────────
       const maleMap: Record<string, number> = {};
       const femaleMap: Record<string, number> = {};
       const infantMap: Record<string, number> = {};
@@ -741,15 +1183,18 @@ export function Analytics() {
       const middleMap: Record<string, number> = {};
       const seniorMap: Record<string, number> = {};
 
-      filtered.forEach((p: any) => {
-        const gender = String(p.gender ?? "").toLowerCase();
-        const age = Number(p.age);
-        if (!Array.isArray(p.diagnosis)) return;
-        p.diagnosis.forEach((d: any) => {
+      filteredRecords.forEach((r: any) => {
+        const gender = String(r.gender ?? "").toLowerCase();
+        const age = Number(r.age);
+        if (!Array.isArray(r?.diagnosis)) return;
+
+        r.diagnosis.forEach((d: any) => {
           const dx = d?.diagnosis?.trim();
           if (!dx) return;
+
           if (gender === "male") maleMap[dx] = (maleMap[dx] || 0) + 1;
           if (gender === "female") femaleMap[dx] = (femaleMap[dx] || 0) + 1;
+
           if (age <= 1) infantMap[dx] = (infantMap[dx] || 0) + 1;
           else if (age <= 20) teenMap[dx] = (teenMap[dx] || 0) + 1;
           else if (age <= 44) adultMap[dx] = (adultMap[dx] || 0) + 1;
@@ -758,16 +1203,31 @@ export function Analytics() {
         });
       });
 
+      // ── 5. Commit everything to state ────────────────────────────────
       setAnalytics((prev) => {
+        // Re-compute any already-selected trends against the fresh filtered set
         const updatedTrends = { ...prev.trendByDiagnosis };
         [...diagnosisTrends, ...prescriptionTrends].forEach((name) => {
-          updatedTrends[name] = getDiagnosisTrend(filtered, name);
+          updatedTrends[name] = getDiagnosisTrend(filteredRecords, name);
         });
+
         return {
           ...prev,
-          diagnoses: getDiagnosisCounts(filtered),
-          genders: getGenderCounts(filtered),
-          ages: getAgeCounts(filtered),
+          // Consultation record diagnoses — read from flattened records
+          diagnoses: getDiagnosisCounts(filteredRecords),
+
+          // Prescription diagnoses — read from flattened prescriptions
+          // (each prescription object already has a .diagnosis array)
+          prescriptions: getDiagnosisCounts(filteredPrescriptions),
+
+          // Drugs — each prescription object already has a .drugs array
+          drugs: getDrugCounts(filteredPrescriptions),
+
+          // Demographics — still sourced from the top-level patient list
+          genders: getGenderCounts(filteredPatients),
+          ages: getAgeCounts(filteredPatients),
+
+          // Demographic × diagnosis slices
           male: mapToArray(maleMap),
           female: mapToArray(femaleMap),
           infant: mapToArray(infantMap),
@@ -775,30 +1235,84 @@ export function Analytics() {
           adult: mapToArray(adultMap),
           middleage: mapToArray(middleMap),
           senior: mapToArray(seniorMap),
+
           trendByDiagnosis: updatedTrends,
         };
       });
+
       setLoading(false);
     });
 
-    const unsubPrescriptions = onValue(prescriptionRef, (snapshot) => {
-      const data = snapshot.val();
-      if (!data) return;
-      const filtered = filterByDate(Object.values(data));
-      setAnalytics((prev) => ({
-        ...prev,
-        prescriptions: getDiagnosisCounts(filtered),
-        drugs: getDrugCounts(filtered),
-      }));
-    });
-
-    return () => {
-      unsubPatients();
-      unsubPrescriptions();
-    };
+    // Single cleanup — no second prescriptions listener needed
+    return () => unsubPatients();
   }, [user, startDate, endDate]);
 
-  const totalPatients = analytics.genders.reduce((s, d) => s + d.count, 0);
+  const handleGenerateReport = async () => {
+    setIsGenerating(true);
+
+    // Wait a moment for any pending renders
+    await new Promise((r) => setTimeout(r, 300));
+
+    const element = reportRef.current;
+    if (!element) {
+      setIsGenerating(false);
+      return;
+    }
+
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2, // High quality
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        scrollY: 0,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      // 2. Calculate dimensions
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      // 4. Add extra pages if content overflows
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight; // shift the image up
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+
+      // 5. Save the PDF
+      const fileName = `Medali_Analytics_Report_${new Date().toISOString().split("T")[0]}.pdf`;
+      pdf.save(fileName);
+    } catch (error) {
+      console.error("Report generation failed:", error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const generatedAt = new Date().toLocaleString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const dateRange =
+    startDate || endDate
+      ? `${startDate ? startDate.toLocaleDateString() : "All time"} – ${endDate ? endDate.toLocaleDateString() : "Present"}`
+      : "";
 
   const ageDataMap = {
     general: analytics.ages,
@@ -809,29 +1323,29 @@ export function Analytics() {
     senior: analytics.senior,
   } as const;
 
-  const ageGroupLabels = {
-    general: "Age distribution",
-    infant: "Infant (0–1)",
-    teen: "Teen (2–20)",
-    adult: "Adult (21–44)",
-    middleage: "Middle age (45–64)",
-    senior: "Senior (65+)",
-  } as const;
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-[#00a896]/30 border-t-[#00a896] rounded-full animate-spin" />
-          <p className="text-black font-semibold text-sm">Loading analytics…</p>
+          <p className="text-gray-700 font-semibold text-sm">
+            Loading analytics…
+          </p>
         </div>
       </div>
     );
   }
 
+  const totalPatients = analytics.genders.reduce((s, d) => s + d.count, 0);
+  const maleCount =
+    analytics.genders.find((g) => g.label.toLowerCase() === "male")?.count ?? 0;
+  const femaleCount =
+    analytics.genders.find((g) => g.label.toLowerCase() === "female")?.count ??
+    0;
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ── Header ────────────────────────────────────────────────────────────── */}
+      {/* ── Header ── */}
       <div className="border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm">
         <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -839,19 +1353,18 @@ export function Analytics() {
               <Activity className="h-5 w-5 text-[#00a896]" />
             </div>
             <div>
-              <h1 className="text-xl font-extrabold text-black tracking-tight">
+              <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">
                 Medical Records Analytics
               </h1>
-              <p className="text-sm text-black font-semibold">
+              <p className="text-sm text-gray-600 font-semibold">
                 Records &amp; Prescriptions Overview
               </p>
             </div>
           </div>
-
           <div className="flex gap-2 flex-wrap items-center">
             <Popover open={openStart} onOpenChange={setOpenStart}>
               <PopoverTrigger asChild>
-                <button className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold border border-gray-200 rounded-lg !bg-[#00c4b4] text-white hover:bg-gray-50 transition-colors shadow-sm">
+                <button className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold border border-gray-200 rounded-lg !bg-[#00c4b4] text-white hover:opacity-90 transition-colors shadow-sm">
                   {startDate ? startDate.toLocaleDateString() : "Start date"}
                   <ChevronDownIcon className="h-3 w-3 opacity-60" />
                 </button>
@@ -867,10 +1380,9 @@ export function Analytics() {
                 />
               </PopoverContent>
             </Popover>
-
             <Popover open={openEnd} onOpenChange={setOpenEnd}>
               <PopoverTrigger asChild>
-                <button className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold border border-gray-200 rounded-lg !bg-[#00c4b4] text-white hover:bg-gray-50 transition-colors shadow-sm">
+                <button className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold border border-gray-200 rounded-lg !bg-[#00c4b4] text-white hover:opacity-90 transition-colors shadow-sm">
                   {endDate ? endDate.toLocaleDateString() : "End date"}
                   <ChevronDownIcon className="h-3 w-3 opacity-60" />
                 </button>
@@ -886,7 +1398,6 @@ export function Analytics() {
                 />
               </PopoverContent>
             </Popover>
-
             {(startDate || endDate) && (
               <button
                 onClick={() => {
@@ -898,49 +1409,61 @@ export function Analytics() {
                 <X className="h-3 w-3" /> Clear
               </button>
             )}
+            <button
+              onClick={handleGenerateReport}
+              disabled={isGenerating}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg !bg-[#00a896] text-white hover:opacity-90 transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isGenerating ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{" "}
+                  Generating…
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4" /> Generate Report
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
 
+      {/* ── Hidden report ── */}
+      <div
+        className="fixed -left-[9999px] top-0 pointer-events-none"
+        aria-hidden
+      >
+        <div ref={reportRef}>
+          <ReportDocument
+            analytics={analytics}
+            generatedAt={generatedAt}
+            dateRange={dateRange}
+          />
+        </div>
+      </div>
+
       <div className="container mx-auto px-4 py-6 space-y-6">
-        {/* ══ ROW 1: Patient Demographics ══════════════════════════════════════ */}
+        {/* ══ Demographics ══ */}
         <SectionCard
           title="Patient Demographics"
           icon={Users}
           iconColor="#378add"
         >
-          {/* Stat pills */}
           <div className="flex flex-wrap gap-3 mb-6">
-            <StatPill
-              label="Male"
-              value={
-                analytics.genders.find((g) => g.label.toLowerCase() === "male")
-                  ?.count ?? 0
-              }
-            />
-            <StatPill
-              label="Female"
-              value={
-                analytics.genders.find(
-                  (g) => g.label.toLowerCase() === "female",
-                )?.count ?? 0
-              }
-            />
+            <StatPill label="Male" value={maleCount} />
+            <StatPill label="Female" value={femaleCount} />
           </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Gender */}
             <SubCard title="Gender distribution">
               {analytics.genders.length ? (
                 <Top5PieChart data={analytics.genders} />
               ) : (
-                <p className="text-sm font-semibold text-black py-4 text-center">
+                <p className="text-sm font-semibold text-gray-600 py-4 text-center">
                   No gender data available
                 </p>
               )}
             </SubCard>
-
-            {/* Age group selector + chart */}
             <SubCard title="Age group breakdown">
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {(
@@ -959,7 +1482,7 @@ export function Analytics() {
                     className={`px-2.5 py-1 text-xs font-bold rounded-full border transition-colors ${
                       selectedAgeGroup === g.id
                         ? "!bg-[#00a896] text-white border-[#00a896]"
-                        : "!bg-white text-black border-gray-200 hover:border-gray-300"
+                        : "!bg-white text-gray-700 border-gray-300 hover:border-gray-400"
                     }`}
                   >
                     {g.label}
@@ -967,35 +1490,34 @@ export function Analytics() {
                 ))}
               </div>
               {ageDataMap[selectedAgeGroup].length ? (
-                selectedAgeGroup === "general" ? (
-                  <Top5BarChart data={ageDataMap[selectedAgeGroup]} />
-                ) : (
-                  <Top5PieChart data={ageDataMap[selectedAgeGroup]} />
-                )
+                <Top5PieChart
+                  data={ageDataMap[selectedAgeGroup].map((d) => ({
+                    ...d,
+                    label: d.label + " yrs old",
+                  }))}
+                />
               ) : (
-                <p className="text-sm font-semibold text-black py-4 text-center">
+                <p className="text-sm font-semibold text-gray-600 py-4 text-center">
                   No data for this group
                 </p>
               )}
             </SubCard>
           </div>
-
-          {/* Male/Female diagnosis side-by-side */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
             <SubCard title="Top diagnoses — male">
               {analytics.male.length ? (
-                <Top5BarChart data={analytics.male} />
+                <Top5PieChart data={analytics.male} />
               ) : (
-                <p className="text-sm font-semibold text-black py-4 text-center">
+                <p className="text-sm font-semibold text-gray-600 py-4 text-center">
                   No data
                 </p>
               )}
             </SubCard>
             <SubCard title="Top diagnoses — female">
               {analytics.female.length ? (
-                <Top5BarChart data={analytics.female} />
+                <Top5PieChart data={analytics.female} />
               ) : (
-                <p className="text-sm font-semibold text-black py-4 text-center">
+                <p className="text-sm font-semibold text-gray-600 py-4 text-center">
                   No data
                 </p>
               )}
@@ -1003,9 +1525,8 @@ export function Analytics() {
           </div>
         </SectionCard>
 
-        {/* ══ ROW 2: Diagnoses ══════════════════════════════════════════════════ */}
+        {/* ══ Diagnoses ══ */}
         <SectionCard title="Diagnoses" icon={Stethoscope} iconColor="#00a896">
-          {/* Top 1 banners only */}
           <div className="flex flex-wrap gap-3 mb-6">
             <Top1Banner
               label="Top Diagnosis — Records"
@@ -1019,99 +1540,75 @@ export function Analytics() {
             />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Records diagnoses */}
-            <div className="space-y-4">
-              <SubCard title="Top 5 — consultation records">
-                {analytics.diagnoses.length ? (
-                  <Top5BarChart data={analytics.diagnoses} />
-                ) : (
-                  <p className="text-sm font-semibold text-black py-4 text-center">
-                    No data
-                  </p>
-                )}
-              </SubCard>
-              <SubCard title="Distribution — consultation records">
+          <div className="mb-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
+              Consultation Records
+            </p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <SubCard title="Distribution">
                 {analytics.diagnoses.length ? (
                   <Top5PieChart data={analytics.diagnoses} />
                 ) : (
-                  <p className="text-sm font-semibold text-black py-4 text-center">
+                  <p className="text-sm font-semibold text-gray-600 py-4 text-center">
                     No data
                   </p>
                 )}
+              </SubCard>
+              <SubCard title="Monthly trend — click a row in the list below to plot">
+                <TrendChart
+                  seriesMap={analytics.trendByDiagnosis}
+                  selected={diagnosisTrends}
+                  onToggle={toggleDiagnosisTrend}
+                  onClear={() => setDiagnosisTrends([])}
+                />
               </SubCard>
             </div>
+          </div>
+          <SubCard title="CLICK A ROW BELOW TO VIEW ITS  MONTHLY TREND">
+            <BarList
+              data={analytics.diagnoses}
+              title="Consultation records"
+              description="Click any row to add it to the trend chart above"
+              onItemClick={toggleDiagnosisTrend}
+            />
+          </SubCard>
 
-            {/* Prescription diagnoses */}
-            <div className="space-y-4">
-              <SubCard title="Top 5 — prescriptions">
-                {analytics.prescriptions.length ? (
-                  <Top5BarChart data={analytics.prescriptions} />
-                ) : (
-                  <p className="text-sm font-semibold text-black py-4 text-center">
-                    No data
-                  </p>
-                )}
-              </SubCard>
-              <SubCard title="Distribution — prescriptions">
+          <div className="mt-6 mb-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
+              Prescriptions
+            </p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <SubCard title="Distribution">
                 {analytics.prescriptions.length ? (
                   <Top5PieChart data={analytics.prescriptions} />
                 ) : (
-                  <p className="text-sm font-semibold text-black py-4 text-center">
+                  <p className="text-sm font-semibold text-gray-600 py-4 text-center">
                     No data
                   </p>
                 )}
               </SubCard>
+              <SubCard title="Monthly trend — click a row in the list below to plot">
+                <TrendChart
+                  seriesMap={analytics.trendByDiagnosis}
+                  selected={prescriptionTrends}
+                  onToggle={togglePrescriptionTrend}
+                  onClear={() => setPrescriptionTrends([])}
+                />
+              </SubCard>
             </div>
           </div>
-
-          {/* Full list — records diagnoses */}
-          <div className="space-y-4">
-            <SubCard title="All record diagnoses — click a row to view trend">
-              <BarList
-                data={analytics.diagnoses}
-                title="Consultation records"
-                description="Click any row to add it to the trend chart below"
-                onItemClick={toggleDiagnosisTrend}
-                showExport
-                exportFilename="diagnoses-records"
-              />
-            </SubCard>
-
-            <SubCard title="Monthly trend — consultation records">
-              <TrendChart
-                seriesMap={analytics.trendByDiagnosis}
-                selected={diagnosisTrends}
-                onToggle={toggleDiagnosisTrend}
-                onClear={() => setDiagnosisTrends([])}
-              />
-            </SubCard>
-
-            <SubCard title="All prescription diagnoses — click a row to view trend">
-              <BarList
-                data={analytics.prescriptions}
-                title="Prescriptions"
-                description="Click any row to add it to the trend chart below"
-                onItemClick={togglePrescriptionTrend}
-                showExport
-                exportFilename="diagnoses-prescriptions"
-              />
-            </SubCard>
-
-            <SubCard title="Monthly trend — prescriptions">
-              <TrendChart
-                seriesMap={analytics.trendByDiagnosis}
-                selected={prescriptionTrends}
-                onToggle={togglePrescriptionTrend}
-                onClear={() => setPrescriptionTrends([])}
-              />
-            </SubCard>
-          </div>
+          <SubCard title="CLICK A ROW BELOW TO VIEW ITS  MONTHLY TREND">
+            <BarList
+              data={analytics.prescriptions}
+              title="Prescriptions"
+              description="Click any row to add it to the trend chart above"
+              onItemClick={togglePrescriptionTrend}
+            />
+          </SubCard>
         </SectionCard>
 
-        {/* ══ ROW 3: Drugs ══════════════════════════════════════════════════════ */}
+        {/* ══ Drugs ══ */}
         <SectionCard title="Prescribed Drugs" icon={Pill} iconColor="#8b5cf6">
-          {/* Top 1 banner only */}
           <div className="flex flex-wrap gap-3 mb-6">
             <Top1Banner
               label="Top Prescribed Drug"
@@ -1119,36 +1616,20 @@ export function Analytics() {
               color="#8b5cf6"
             />
           </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <SubCard title="Top 5 — bar">
-              {analytics.drugs.length ? (
-                <Top5BarChart data={analytics.drugs} />
-              ) : (
-                <p className="text-sm font-semibold text-black py-4 text-center">
-                  No data
-                </p>
-              )}
-            </SubCard>
             <SubCard title="Top 5 — distribution">
               {analytics.drugs.length ? (
                 <Top5PieChart data={analytics.drugs} />
               ) : (
-                <p className="text-sm font-semibold text-black py-4 text-center">
+                <p className="text-sm font-semibold text-gray-600 py-4 text-center">
                   No data
                 </p>
               )}
             </SubCard>
+            {/* <SubCard title="All prescribed drugs">
+              <BarList data={analytics.drugs} title="Drug frequency" />
+            </SubCard> */}
           </div>
-
-          <SubCard title="All prescribed drugs">
-            <BarList
-              data={analytics.drugs}
-              title="Drug frequency"
-              showExport
-              exportFilename="drugs"
-            />
-          </SubCard>
         </SectionCard>
       </div>
     </div>

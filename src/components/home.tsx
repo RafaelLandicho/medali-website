@@ -165,18 +165,6 @@ function LivePatientCard() {
   const diagnoses: { diagnosis: string; severity: string }[] =
     latestRecord.diagnosis ?? latestRecord.patientDiagnosis ?? [];
 
-  const timeAgo = latestRecord.createdAt
-    ? (() => {
-        const diff = Date.now() - latestRecord.createdAt;
-        const mins = Math.floor(diff / 60000);
-        const hrs = Math.floor(mins / 60);
-        const days = Math.floor(hrs / 24);
-        if (days > 0) return `${days}d ago`;
-        if (hrs > 0) return `${hrs}h ago`;
-        return `${mins}m ago`;
-      })()
-    : null;
-
   const SeverityBadge = ({ severity }: { severity: string }) => {
     const s = severity?.toLowerCase() ?? "";
     const color =
@@ -205,12 +193,6 @@ function LivePatientCard() {
               Latest record update
             </span>
           </div>
-          {timeAgo && (
-            <div className="flex items-center gap-1 text-xs text-white/40 font-semibold">
-              <Clock className="w-3 h-3" />
-              {timeAgo}
-            </div>
-          )}
         </div>
 
         <div className="p-5 space-y-4">
@@ -344,39 +326,39 @@ function LivePatientCard() {
 
 // ─── Quick action buttons ──────────────────────────────────────────────────────
 const QUICK_ACTIONS = [
-  {
-    label: "Patients",
-    icon: Users,
-    path: "/patients",
-    color: "#378add",
-    desc: "View & manage all patients",
-  },
+  // {
+  //   label: "Patients",
+  //   icon: Users,
+  //   path: "/patients",
+  //   color: "#00c4b4", // green accent
+  //   desc: "View & manage all patients",
+  // },
   {
     label: "Records",
     icon: ClipboardList,
     path: "/records",
-    color: "#00a896",
+    color: "#00c4b4",
     desc: "Consultation history",
   },
-  {
-    label: "Prescriptions",
-    icon: Pill,
-    path: "/prescriptions",
-    color: "#8b5cf6",
-    desc: "Issued prescriptions",
-  },
+  // {
+  //   label: "Prescriptions",
+  //   icon: Pill,
+  //   path: "/prescriptions",
+  //   color: "#00c4b4",
+  //   desc: "Issued prescriptions",
+  // },
   {
     label: "Analytics",
     icon: BarChart2,
     path: "/analytics",
-    color: "#ef9f27",
+    color: "#00c4b4",
     desc: "Trends & reports",
   },
   {
     label: "Users",
     icon: UserCog,
     path: "/users",
-    color: "#d4537e",
+    color: "#00c4b4",
     desc: "Doctors & secretaries",
   },
 ];
@@ -384,24 +366,24 @@ const QUICK_ACTIONS = [
 function QuickActions() {
   const navigate = useNavigate();
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-3 gap-3">
       {QUICK_ACTIONS.map(({ label, icon: Icon, path, color, desc }) => (
         <button
           key={label}
           onClick={() => navigate(path)}
-          className="group flex flex-col items-start gap-2 p-3 rounded-xl border border-white/8 bg-white/4 hover:bg-white/8 hover:border-white/15 transition-all text-left"
+          className="group flex flex-col items-start gap-2 p-4 rounded-xl border border-gray-200 !bg-black hover:bg-gray-50 hover:border-gray-300 transition-all text-left shadow-sm"
         >
           <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: color + "20" }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-green-50"
+            style={{ backgroundColor: color + "15" }}
           >
             <Icon className="w-4 h-4" style={{ color }} />
           </div>
           <div>
-            <p className="text-xs font-bold text-white leading-none">{label}</p>
-            <p className="text-[10px] text-white/40 mt-0.5 leading-tight">
-              {desc}
+            <p className="text-sm font-bold text-white group-hover:text-[#00c4b4] transition-colors">
+              {label}
             </p>
+            <p className="text-xs text-white mt-0.5 leading-tight">{desc}</p>
           </div>
         </button>
       ))}
@@ -413,7 +395,7 @@ export function Homepage() {
   const { user } = useAuth();
 
   return (
-    <div className="w-full !bg-white text-[#e8edf5] font-sans">
+    <div className="w-full bg-[#080f1a] text-[#e8edf5] font-sans">
       {/* ── HERO ── */}
       <section className="min-h-screen bg-[#080f1a] grid md:grid-cols-2 items-center px-10 md:px-14 py-24 gap-16 max-w-7xl mx-auto">
         {/* LEFT */}
@@ -437,7 +419,7 @@ export function Homepage() {
 
           {user ? (
             <div className="space-y-4">
-              <p className="text-sm font-bold text-white/40 uppercase tracking-widest">
+              <p className="text-sm font-bold text-white uppercase tracking-widest">
                 Quick access
               </p>
               <QuickActions />

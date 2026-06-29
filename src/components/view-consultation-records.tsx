@@ -855,9 +855,7 @@ const ConsultationRecordActions = ({ records }: { records: MedicalRecord }) => {
     return () => unsub();
   }, [patient?.id, records.recordId]);
 
-  const userIsDoctor =
-    user?.type?.toLowerCase() === "doctor" ||
-    user?.type?.toLowerCase() === "admin";
+  const userIsDoctor = user?.type?.toLowerCase() === "doctor";
   if (!patient) return null;
 
   const patientWithRecord: PatientWithRecord = {

@@ -271,7 +271,7 @@ export function ViewUsers() {
   if (loading) return <div>Loading...</div>;
 
   return (
-    <div className="p-6 space-y-10">
+    <div className="p-6 space-y-6 bg-gray-50 max-w-6xl mx-auto">
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -325,240 +325,96 @@ export function ViewUsers() {
         </DialogContent>
       </Dialog>
 
-      <div className="p-10 space-y-10 bg-gray-50 min-h-screen">
-        {/* HEADER */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">
-              View and Search for Doctors and Secretaries
-            </h1>
-            <p className="text-gray-500">
-              We've found {doctorsFiltered.length + secretariesFiltered.length}{" "}
-              Users Available
+      {/* HEADER */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">
+            View and Search for Doctors and Secretaries
+          </h1>
+          <p className="text-gray-500">
+            We've found {doctorsFiltered.length + secretariesFiltered.length}{" "}
+            Users Available
+          </p>
+        </div>
+        {isAdmin && (
+          <div className="bg-red-50 px-4 py-2 rounded-lg">
+            <p className="text-red-600 text-sm font-semibold">
+              Admin Mode: You can delete users
             </p>
           </div>
-          {isAdmin && (
-            <div className="bg-red-50 px-4 py-2 rounded-lg">
-              <p className="text-red-600 text-sm font-semibold">
-                Admin Mode: You can delete users
-              </p>
-            </div>
-          )}
-        </div>
+        )}
+      </div>
 
-        {/* SEARCH BAR */}
-        <div className="flex gap-4">
-          <Input
-            placeholder={`Search by ${filter.toLocaleUpperCase()}`}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="max-w-md"
-          />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button className="!bg-[#00a896] !text-white">
-                Filter <ChevronDown className="ml-2 w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              {["firstName", "lastName", "field", "email"].map((col) => (
-                <DropdownMenuItem
-                  key={col}
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setFilter(col as keyof User);
-                    setSearch("");
-                    setOpen(false);
-                  }}
-                >
-                  {col}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        <div>
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid grid-cols-2 w-full mb-8 bg-gray-100 rounded-xl p-1">
-              <TabsTrigger
-                value="login"
-                className="rounded-lg text-sm font-medium transition-all data-[state=active]:!bg-[#00a896] data-[state=active]:!text-white data-[state=inactive]:text-gray-500"
+      {/* SEARCH BAR */}
+      <div className="flex gap-4">
+        <Input
+          placeholder={`Search by ${filter.toLocaleUpperCase()}`}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-md"
+        />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="!bg-[#00a896] !text-white">
+              Filter <ChevronDown className="ml-2 w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            {["firstName", "lastName", "field", "email"].map((col) => (
+              <DropdownMenuItem
+                key={col}
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setFilter(col as keyof User);
+                  setSearch("");
+                  setOpen(false);
+                }}
               >
-                Doctors
-              </TabsTrigger>
-              <TabsTrigger
-                value="signup"
-                className="rounded-lg text-sm font-medium transition-all data-[state=active]:!bg-[#00a896] data-[state=active]:!text-white data-[state=inactive]:text-gray-500"
-              >
-                Secretaries
-              </TabsTrigger>
-            </TabsList>
+                {col}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
-            {/* ── DOCTORS TAB ── */}
-            <TabsContent value="login">
-              <div className="mb-6">
-                <div className="space-y-6">
-                  {doctorsFiltered.length > 0 && (
-                    <SectionLabel title="Doctors" />
-                  )}
-                  {doctorsFiltered.map((u) => {
-                    const alreadyLinked =
-                      userIsSecretary &&
-                      currentUserDB?.doctors?.includes?.(u.id);
-                    const alreadyRequested =
-                      userIsSecretary &&
-                      currentUserDB?.requestedTo?.includes?.(u.id);
+      <div>
+        <Tabs defaultValue="login" className="w-full">
+          <TabsList className="grid grid-cols-2 w-full mb-8 bg-gray-100 rounded-xl p-1">
+            <TabsTrigger
+              value="login"
+              className="rounded-lg text-sm font-medium transition-all data-[state=active]:!bg-[#00a896] data-[state=active]:!text-white data-[state=inactive]:text-gray-500"
+            >
+              Doctors
+            </TabsTrigger>
+            <TabsTrigger
+              value="signup"
+              className="rounded-lg text-sm font-medium transition-all data-[state=active]:!bg-[#00a896] data-[state=active]:!text-white data-[state=inactive]:text-gray-500"
+            >
+              Secretaries
+            </TabsTrigger>
+          </TabsList>
 
-                    // Fee visibility: only show to linked users, admins, or the doctor themselves
-                    const canSeeFee = isAdmin || alreadyLinked;
-
-                    const sched = getEarliestSchedule(u);
-
-                    return (
-                      <div
-                        key={u.id}
-                        className="bg-white rounded-2xl shadow-md border p-6 grid grid-cols-1 lg:grid-cols-[320px_1fr_220px] gap-8 items-center relative"
-                      >
-                        {/* Delete button for admin */}
-                        {isAdmin && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="absolute top-4 right-4 text-red-600 hover:text-red-700 hover:bg-red-50 !bg-white"
-                            onClick={() => {
-                              setUserToDelete(u);
-                              setIsDeleteDialogOpen(true);
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-
-                        {/* LEFT COLUMN */}
-                        <div className="flex gap-4 items-center">
-                          <Avatar className="w-24 h-24 shrink-0">
-                            <AvatarImage src={getAvatar(u.id, u.type)} />
-                            <AvatarFallback>DR</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <h2 className="text-2xl font-semibold">
-                              Dr. {u.firstName} {u.lastName}
-                            </h2>
-                            <p className="text-gray-500">{u.field}</p>
-                            <p className="text-gray-500">
-                              {u.profileExperience ?? 5} yrs experience
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* MIDDLE COLUMN */}
-                        <div className="flex items-center justify-center gap-4 h-full">
-                          <div className="bg-blue-50 p-4 rounded-xl shrink-0">
-                            📱
-                          </div>
-                          <div>
-                            <p className="font-semibold text-slate-700">
-                              Earliest Available Schedule
-                            </p>
-                            {sched ? (
-                              <>
-                                <p className="font-semibold text-lg">
-                                  {sched.clinic}
-                                </p>
-                                <p className="text-gray-600">
-                                  {sched.day}, {sched.time}
-                                </p>
-                                {canSeeFee ? (
-                                  <p className="font-semibold mt-2">
-                                    Fee: ₱{sched.fee?.toLocaleString()}
-                                  </p>
-                                ) : (
-                                  <p className="text-sm text-gray-400 italic mt-2 flex items-center gap-1">
-                                    <span className="inline-block w-3 h-3 rounded-full bg-gray-300" />
-                                  </p>
-                                )}
-                              </>
-                            ) : (
-                              <p className="text-gray-500">No schedule yet</p>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* RIGHT COLUMN */}
-                        <div className="flex justify-end items-center">
-                          {userIsSecretary ? (
-                            alreadyLinked ? (
-                              <div className="flex items-center gap-3">
-                                <Button
-                                  className="!bg-white text-black underline"
-                                  onClick={() => navigate(`/profile/${u.id}`)}
-                                >
-                                  VIEW PROFILE
-                                </Button>
-                                <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-600 px-4 py-2 rounded-full font-semibold">
-                                  <CheckCircle className="w-5 h-5" />
-                                  LINKED
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-3">
-                                <Button
-                                  className="!bg-white text-black underline"
-                                  onClick={() => navigate(`/profile/${u.id}`)}
-                                >
-                                  VIEW PROFILE
-                                </Button>
-                                {alreadyRequested ? (
-                                  <div className="flex items-center gap-2 bg-yellow-500/10 text-yellow-800 px-4 py-2 rounded-full font-semibold">
-                                    <CheckCircle className="w-5 h-5" />
-                                    REQUEST SENT
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => addRequest(u)}
-                                    className="flex items-center gap-2 bg-sky-50 text-sky-600 px-4 py-2 rounded-full font-semibold border border-sky-200 hover:bg-sky-100 transition"
-                                  >
-                                    <PlusCircle className="w-5 h-5" />
-                                    Add Doctor
-                                  </button>
-                                )}
-                              </div>
-                            )
-                          ) : (
-                            <Button
-                              className="!bg-white text-black underline"
-                              onClick={() => navigate(`/profile/${u.id}`)}
-                            >
-                              VIEW PROFILE
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* ── SECRETARIES TAB ── */}
-            <TabsContent value="signup">
-              {secretariesFiltered.length > 0 && (
-                <SectionLabel title="Secretaries" />
-              )}
+          {/* ── DOCTORS TAB ── */}
+          <TabsContent value="login">
+            <div className="mb-6">
               <div className="space-y-6">
-                {secretariesFiltered.map((s) => {
+                {doctorsFiltered.length > 0 && <SectionLabel title="Doctors" />}
+                {doctorsFiltered.map((u) => {
                   const alreadyLinked =
-                    userIsDoctor &&
-                    currentUserDB?.secretaries?.includes?.(s.id);
-                  const hasRequest =
-                    userIsDoctor &&
-                    currentUserDB?.requestedBy?.includes?.(s.id);
+                    userIsSecretary && currentUserDB?.doctors?.includes?.(u.id);
+                  const alreadyRequested =
+                    userIsSecretary &&
+                    currentUserDB?.requestedTo?.includes?.(u.id);
+
+                  // Fee visibility: only show to linked users, admins, or the doctor themselves
+                  const canSeeFee = isAdmin || alreadyLinked;
+
+                  const sched = getEarliestSchedule(u);
 
                   return (
                     <div
-                      key={s.id}
-                      className="bg-white rounded-2xl shadow-md p-6 flex flex-col lg:flex-row justify-between gap-6 border relative"
+                      key={u.id}
+                      className="bg-white rounded-2xl shadow-md border p-6 grid grid-cols-1 lg:grid-cols-[320px_1fr_220px] gap-8 items-center relative"
                     >
                       {/* Delete button for admin */}
                       {isAdmin && (
@@ -567,7 +423,7 @@ export function ViewUsers() {
                           size="sm"
                           className="absolute top-4 right-4 text-red-600 hover:text-red-700 hover:bg-red-50 !bg-white"
                           onClick={() => {
-                            setUserToDelete(s);
+                            setUserToDelete(u);
                             setIsDeleteDialogOpen(true);
                           }}
                         >
@@ -575,85 +431,222 @@ export function ViewUsers() {
                         </Button>
                       )}
 
-                      {/* LEFT */}
-                      <div className="flex gap-4 min-w-[280px]">
-                        <Avatar className="w-20 h-20">
-                          <AvatarImage src={getAvatar(s.id, s.type)} />
-                          <AvatarFallback>SC</AvatarFallback>
+                      {/* LEFT COLUMN */}
+                      <div className="flex gap-4 items-center">
+                        <Avatar className="w-24 h-24 shrink-0">
+                          <AvatarImage src={getAvatar(u.id, u.type)} />
+                          <AvatarFallback>DR</AvatarFallback>
                         </Avatar>
                         <div>
                           <h2 className="text-2xl font-semibold">
-                            {s.firstName} {s.lastName}
+                            Dr. {u.firstName} {u.lastName}
                           </h2>
-                          <p className="text-gray-500">Secretary</p>
-                          <p className="text-gray-500">{s.email}</p>
+                          <p className="text-gray-500">{u.field}</p>
+                          <p className="text-gray-500">
+                            {u.profileExperience ?? 5} yrs experience
+                          </p>
                         </div>
                       </div>
 
-                      {/* MIDDLE */}
-                      <div className="flex items-center gap-4 min-w-[260px]">
-                        <div className="bg-blue-50 p-4 rounded-xl">📩</div>
+                      {/* MIDDLE COLUMN */}
+                      <div className="flex items-center justify-center gap-4 h-full">
+                        <div className="bg-blue-50 p-4 rounded-xl shrink-0">
+                          📱
+                        </div>
                         <div>
-                          <p className="font-semibold text-gray-700">
-                            Contact Info
+                          <p className="font-semibold text-slate-700">
+                            Earliest Available Schedule
                           </p>
-                          {/* Only show email to linked doctors or admins */}
-                          {isAdmin || alreadyLinked ? (
-                            <p className="text-gray-600">{s.email}</p>
+                          {sched ? (
+                            <>
+                              <p className="font-semibold text-lg">
+                                {sched.clinic}
+                              </p>
+                              <p className="text-gray-600">
+                                {sched.day}, {sched.time}
+                              </p>
+                              {canSeeFee ? (
+                                <p className="font-semibold mt-2">
+                                  Fee: ₱{sched.fee?.toLocaleString()}
+                                </p>
+                              ) : (
+                                <p className="text-sm text-gray-400 italic mt-2 flex items-center gap-1">
+                                  <span className="inline-block w-3 h-3 rounded-full bg-gray-300" />
+                                </p>
+                              )}
+                            </>
                           ) : (
-                            <p className="text-sm text-gray-400 italic flex items-center gap-1">
-                              <span className="inline-block w-3 h-3 rounded-full bg-gray-300" />
-                            </p>
+                            <p className="text-gray-500">No schedule yet</p>
                           )}
                         </div>
                       </div>
 
-                      {/* RIGHT */}
-                      <div className="flex flex-col justify-center items-end gap-4 min-w-[200px]">
-                        <Button
-                          className="!bg-white text-black underline"
-                          onClick={() => navigate(`/profile/${s.id}`)}
-                        >
-                          VIEW PROFILE
-                        </Button>
-                        {userIsDoctor && (
-                          <>
-                            {alreadyLinked ? (
+                      {/* RIGHT COLUMN */}
+                      <div className="flex justify-end items-center">
+                        {userIsSecretary ? (
+                          alreadyLinked ? (
+                            <div className="flex items-center gap-3">
+                              <Button
+                                className="!bg-white text-black underline"
+                                onClick={() => navigate(`/profile/${u.id}`)}
+                              >
+                                VIEW PROFILE
+                              </Button>
                               <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-600 px-4 py-2 rounded-full font-semibold">
                                 <CheckCircle className="w-5 h-5" />
                                 LINKED
                               </div>
-                            ) : hasRequest ? (
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => acceptRequest(s)}
-                                  className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-full font-semibold border border-emerald-200 hover:bg-emerald-100 transition"
-                                >
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-3">
+                              <Button
+                                className="!bg-white text-black underline"
+                                onClick={() => navigate(`/profile/${u.id}`)}
+                              >
+                                VIEW PROFILE
+                              </Button>
+                              {alreadyRequested ? (
+                                <div className="flex items-center gap-2 bg-yellow-500/10 text-yellow-800 px-4 py-2 rounded-full font-semibold">
                                   <CheckCircle className="w-5 h-5" />
-                                  Accept
-                                </button>
+                                  REQUEST SENT
+                                </div>
+                              ) : (
                                 <button
-                                  onClick={() => cancelRequest(s)}
-                                  className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-full font-semibold border border-red-200 hover:bg-red-100 transition"
+                                  onClick={() => addRequest(u)}
+                                  className="flex items-center gap-2 bg-sky-50 text-sky-600 px-4 py-2 rounded-full font-semibold border border-sky-200 hover:bg-sky-100 transition"
                                 >
-                                  Cancel
+                                  <PlusCircle className="w-5 h-5" />
+                                  Add Doctor
                                 </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2 bg-gray-100 text-gray-500 px-4 py-2 rounded-full font-semibold">
-                                Not Linked
-                              </div>
-                            )}
-                          </>
+                              )}
+                            </div>
+                          )
+                        ) : (
+                          <Button
+                            className="!bg-white text-black underline"
+                            onClick={() => navigate(`/profile/${u.id}`)}
+                          >
+                            VIEW PROFILE
+                          </Button>
                         )}
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </TabsContent>
-          </Tabs>
-        </div>
+            </div>
+          </TabsContent>
+
+          {/* ── SECRETARIES TAB ── */}
+          <TabsContent value="signup">
+            {secretariesFiltered.length > 0 && (
+              <SectionLabel title="Secretaries" />
+            )}
+            <div className="space-y-6">
+              {secretariesFiltered.map((s) => {
+                const alreadyLinked =
+                  userIsDoctor && currentUserDB?.secretaries?.includes?.(s.id);
+                const hasRequest =
+                  userIsDoctor && currentUserDB?.requestedBy?.includes?.(s.id);
+
+                return (
+                  <div
+                    key={s.id}
+                    className="bg-white rounded-2xl shadow-md p-6 flex flex-col lg:flex-row justify-between gap-6 border relative"
+                  >
+                    {/* Delete button for admin */}
+                    {isAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-4 right-4 text-red-600 hover:text-red-700 hover:bg-red-50 !bg-white"
+                        onClick={() => {
+                          setUserToDelete(s);
+                          setIsDeleteDialogOpen(true);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+
+                    {/* LEFT */}
+                    <div className="flex gap-4 min-w-[280px]">
+                      <Avatar className="w-20 h-20">
+                        <AvatarImage src={getAvatar(s.id, s.type)} />
+                        <AvatarFallback>SC</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h2 className="text-2xl font-semibold">
+                          {s.firstName} {s.lastName}
+                        </h2>
+                        <p className="text-gray-500">Secretary</p>
+                        <p className="text-gray-500">{s.email}</p>
+                      </div>
+                    </div>
+
+                    {/* MIDDLE */}
+                    <div className="flex items-center gap-4 min-w-[260px]">
+                      <div className="bg-blue-50 p-4 rounded-xl">📩</div>
+                      <div>
+                        <p className="font-semibold text-gray-700">
+                          Contact Info
+                        </p>
+                        {/* Only show email to linked doctors or admins */}
+                        {isAdmin || alreadyLinked ? (
+                          <p className="text-gray-600">{s.email}</p>
+                        ) : (
+                          <p className="text-sm text-gray-400 italic flex items-center gap-1">
+                            <span className="inline-block w-3 h-3 rounded-full bg-gray-300" />
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* RIGHT */}
+                    <div className="flex flex-col justify-center items-end gap-4 min-w-[200px]">
+                      <Button
+                        className="!bg-white text-black underline"
+                        onClick={() => navigate(`/profile/${s.id}`)}
+                      >
+                        VIEW PROFILE
+                      </Button>
+                      {userIsDoctor && (
+                        <>
+                          {alreadyLinked ? (
+                            <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-600 px-4 py-2 rounded-full font-semibold">
+                              <CheckCircle className="w-5 h-5" />
+                              LINKED
+                            </div>
+                          ) : hasRequest ? (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => acceptRequest(s)}
+                                className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-full font-semibold border border-emerald-200 hover:bg-emerald-100 transition"
+                              >
+                                <CheckCircle className="w-5 h-5" />
+                                Accept
+                              </button>
+                              <button
+                                onClick={() => cancelRequest(s)}
+                                className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-full font-semibold border border-red-200 hover:bg-red-100 transition"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 bg-gray-100 text-gray-500 px-4 py-2 rounded-full font-semibold">
+                              Not Linked
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

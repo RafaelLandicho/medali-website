@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   ChevronDown,
+  Clock, // ← new icon for pending
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { useAuth } from "@/auth/authprovider";
@@ -28,8 +29,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
-// Each entry is now a single destination — no sub-menus.
-
 const NAV_ITEMS = [
   {
     label: "Home",
@@ -42,6 +41,12 @@ const NAV_ITEMS = [
     path: "/records",
   },
   {
+    label: "Pending",
+    icon: Clock,
+    path: "/pending",
+    doctorOnly: true,
+  },
+  {
     label: "Analytics",
     icon: BarChart3,
     path: "/analytics",
@@ -51,6 +56,7 @@ const NAV_ITEMS = [
     icon: Users,
     path: "/users",
   },
+
   {
     label: "Admin",
     icon: Shield,
@@ -59,7 +65,7 @@ const NAV_ITEMS = [
   },
 ];
 
-// ─── Desktop nav item (plain button, no dropdown) ─────────────────────────────
+// ─── Desktop nav item ────────────────────────────────────────────────────────
 
 const NavItem = ({
   item,
@@ -98,6 +104,7 @@ export default function HeaderPage() {
   const location = useLocation();
   const isMobile = useIsMobile();
   const isAdmin = user?.type?.toLowerCase() === "admin";
+  const isDoctor = user?.type?.toLowerCase() === "doctor";
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   // Close mobile menu on route change
@@ -108,10 +115,12 @@ export default function HeaderPage() {
   const isActive = (item: (typeof NAV_ITEMS)[0]) =>
     item.path === location.pathname;
 
-  // Filter nav items: hide Admin for non-admins
-  const visibleNavItems = NAV_ITEMS.filter(
-    (item) => !item.adminOnly || isAdmin,
-  );
+  // Filter nav items: hide Admin for non‑admins, hide Pending for non‑doctors
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.adminOnly && !isAdmin) return false;
+    if (item.doctorOnly && !isDoctor) return false;
+    return true;
+  });
 
   return (
     <>
@@ -227,7 +236,7 @@ export default function HeaderPage() {
           </div>
         </div>
 
-        {/* Mobile nav — flat list of buttons, no expand/collapse */}
+        {/* Mobile nav — flat list of buttons */}
         {isMobile && mobileMenuOpen && (
           <div className="border-t border-white/10 bg-[#1a1a2e] px-4 pb-4 pt-2">
             {visibleNavItems.map((item) => {

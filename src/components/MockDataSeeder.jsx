@@ -310,6 +310,12 @@ const DIAGNOSES = [
   { d: "Panic Disorder", s: "moderate" },
   { d: "Attention Deficit Hyperactivity Disorder", s: "mild" },
   { d: "Autism Spectrum Disorder", s: "moderate" },
+  // Additional surgical/General Surgery related diagnoses
+  { d: "Cholelithiasis", s: "moderate" },
+  { d: "Inguinal Hernia", s: "moderate" },
+  { d: "Appendicitis", s: "severe" },
+  { d: "Gastrointestinal Bleeding", s: "critical" },
+  { d: "Soft Tissue Infection", s: "mild" },
 ];
 
 const SYMPTOMS_POOL = [
@@ -338,6 +344,11 @@ const SYMPTOMS_POOL = [
   "sudden intense fear, palpitations, shortness of breath",
   "inattention, hyperactivity, impulsivity",
   "social communication deficits, repetitive behaviors",
+  "right upper quadrant pain, nausea, vomiting",
+  "groin bulge, pain on lifting, burning sensation",
+  "severe abdominal pain, fever, rebound tenderness",
+  "hematemesis, melena, dizziness, pallor",
+  "localized swelling, erythema, warmth, pain",
 ];
 
 const DRUGS_POOL = [
@@ -551,16 +562,38 @@ const DRUGS_POOL = [
     purpose: "Insomnia",
     frequency: "At bedtime PRN",
   },
+  // Additional surgical drugs
+  {
+    medicine: "Tramadol",
+    unit: "Tablet",
+    dosage: "50mg",
+    purpose: "Moderate pain",
+    frequency: "Every 6 hours PRN",
+  },
+  {
+    medicine: "Celecoxib",
+    unit: "Capsule",
+    dosage: "200mg",
+    purpose: "Anti-inflammatory",
+    frequency: "1x daily",
+  },
+  {
+    medicine: "Cefuroxime",
+    unit: "Tablet",
+    dosage: "500mg",
+    purpose: "Surgical prophylaxis",
+    frequency: "2x daily",
+  },
 ];
 
 // ── New doctor account — all seeded data will be owned by this user ──────────
 const REAL_DOCTOR = {
-  uid: "uCnKTn5Yuof3nm8BxruiHS7zCnD3",
-  name: "Doctor Bees",
-  displayName: "Dr. Bees",
-  field: "Psychiatry",
-  medicalId: "123567789",
-  email: "dbees@gmail.com",
+  uid: "HIVzoMhjVXXMgVUv6AIF0DiWMs02",
+  name: "Romel Bautista",
+  displayName: "Dr. Romel Bautista",
+  field: "General Surgery",
+  medicalId: "123902447",
+  email: "rb@gmail.com",
 };
 
 // Secondary doctors used only for prescription "addedBy" display variety
@@ -596,6 +629,11 @@ const EXAMINATIONS = [
   "BP 118/72 mmHg, HR 68 bpm. Mental status: euthymic, cooperative. Speech: normal rate and tone.",
   "BP 155/95 mmHg, HR 88 bpm. Mental status: irritable, labile. Speech: rapid, tangential.",
   "BP 130/82 mmHg, HR 70 bpm. Mental status: guarded, suspicious. Speech: normal.",
+  // Surgical exams
+  "Abdomen: flat, soft, tender at right upper quadrant. Murphy's sign positive. Bowel sounds normal.",
+  "Inguinal area: visible bulge on right side, reducible. No signs of strangulation.",
+  "Abdomen: rigid, guarding, rebound tenderness at right lower quadrant. Positive Rovsing's sign.",
+  "Wound: 5cm incisional wound, edges well-approximated, no erythema or discharge. Afebrile.",
 ];
 
 const RECOMMENDATIONS = [
@@ -609,6 +647,11 @@ const RECOMMENDATIONS = [
   "Medication adherence is crucial. Family support recommended. Follow-up in 1 month.",
   "Reduce stressors, practice relaxation techniques. Regular exercise and balanced diet. Follow-up in 3 weeks.",
   "Structured daily routine. Avoid triggers. Continue with cognitive behavioral therapy. Follow-up in 4 weeks.",
+  // Surgical recommendations
+  "Post-op: avoid heavy lifting >5kg for 2 weeks. Monitor wound for signs of infection. Follow-up in 1 week.",
+  "Schedule for elective cholecystectomy. Maintain low-fat diet pre-op. Arrange for pre-surgical clearance.",
+  "Advise warm sitz baths, increase fluid intake. Plan for herniorrhaphy within the month.",
+  "Complete antibiotic course. Return to ER if fever >38.5°C or worsening pain. Follow-up in 3 days.",
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -704,6 +747,9 @@ function generatePatients(count = 100) {
         "COPD",
         "Arthritis",
         "Thyroid disorder",
+        "Gallbladder disease",
+        "Hernia",
+        "Appendicitis",
       ]),
       goodHealth: bool(0.5),
       isAlive: bool(0.7),
@@ -937,7 +983,8 @@ export function MockDataSeeder() {
             Push 100 mock patients with records to Firebase
           </p>
           <p className="text-xs text-[#00a896] mt-1 font-mono">
-            Owner: {REAL_DOCTOR.displayName} · {REAL_DOCTOR.email} · Psychiatry
+            Owner: {REAL_DOCTOR.displayName} · {REAL_DOCTOR.email} ·{" "}
+            {REAL_DOCTOR.field}
           </p>
         </div>
 
@@ -971,12 +1018,12 @@ export function MockDataSeeder() {
               "✓ Weight is gender‑specific (male 55–95 kg, female 45–85 kg)",
               "✓ Dates spread across all 12 months of the current year",
               "✓ 1–3 consultation records per patient (different months)",
-              "✓ 30+ different diagnoses (including psychiatric conditions)",
-              "✓ 30+ different drugs (including psychiatric medications)",
+              "✓ 30+ different diagnoses (including surgical conditions)",
+              "✓ 30+ different drugs (including surgical medications)",
               "✓ 60% of records include a prescription",
               "✓ Vital signs, symptoms, family history per record",
               "✓ Health flags (TB, drug/food allergies) on some patients",
-              `✓ All records owned by: ${REAL_DOCTOR.displayName} (Psychiatry)`,
+              `✓ All records owned by: ${REAL_DOCTOR.displayName} (${REAL_DOCTOR.field})`,
             ].map((line) => (
               <p key={line}>{line}</p>
             ))}

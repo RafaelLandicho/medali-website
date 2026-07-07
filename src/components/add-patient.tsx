@@ -16,6 +16,8 @@ import {
   ShieldCheck,
   ClipboardList,
   Users,
+  Link2,
+  AlertTriangle,
 } from "lucide-react";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import {
@@ -97,8 +99,11 @@ export function AddPatient() {
       isAlive: true,
     },
   ]);
-  const [linkedUsers, setLinkedUsers] = React.useState<any[]>([]);
-  const [selectedLinkedUser, setSelectedLinkedUser] = React.useState("");
+
+  const [currentUserLinkId, setCurrentUserLinkId] = React.useState<
+    string | null
+  >(null);
+  const [linkedUser, setLinkedUser] = React.useState<any | null>(null);
 
   const userIsAdmin = user?.type?.toLowerCase() === "admin";
   const userIsSecretary = user?.type?.toLowerCase() === "secretary";
@@ -110,22 +115,24 @@ export function AddPatient() {
     const unsubscribe = onValue(userRef, async (snapshot) => {
       const userData = snapshot.val();
       if (!userData) return;
-      let linkedUserIds: string[] = [];
-      if (user.type?.toLowerCase() === "secretary") {
-        linkedUserIds = userData.doctors || [];
-      } else if (user.type?.toLowerCase() === "doctor") {
-        linkedUserIds = userData.secretaries || [];
+      const linkId: string | null = userData.linkId ?? null;
+      setCurrentUserLinkId(linkId);
+
+      if (!linkId) {
+        setLinkedUser(null);
+        return;
       }
-      const linkedUsersPromises = linkedUserIds.map(async (userId: string) => {
-        const linkedUserRef = ref(db, `users/${userId}`);
-        const linkedUserSnap = await get(linkedUserRef);
-        if (linkedUserSnap.exists()) {
-          return { id: userId, ...linkedUserSnap.val() };
-        }
-        return null;
-      });
-      const linkedUsersData = await Promise.all(linkedUsersPromises);
-      setLinkedUsers(linkedUsersData.filter(Boolean));
+
+      const allUsersSnap = await get(ref(db, "users"));
+      const allUsers = allUsersSnap.val() || {};
+      const partnerEntry = Object.entries(allUsers).find(
+        ([id, u]: [string, any]) => id !== user.uid && u.linkId === linkId,
+      );
+      setLinkedUser(
+        partnerEntry
+          ? { id: partnerEntry[0], ...(partnerEntry[1] as any) }
+          : null,
+      );
     });
     return () => unsubscribe();
   }, [user]);
@@ -175,6 +182,11 @@ export function AddPatient() {
       return;
     }
 
+    if (userIsSecretary && !currentUserLinkId) {
+      toast.error("You must be linked to a doctor before adding patients.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -184,9 +196,6 @@ export function AddPatient() {
       const patient = push(patientsRef);
       const pending = push(pendingRef);
       const newLog = push(logsRef);
-
-      const sharedWith = [user?.uid];
-      if (selectedLinkedUser) sharedWith.push(selectedLinkedUser);
 
       const patientData = {
         patientId: patient.key,
@@ -216,10 +225,10 @@ export function AddPatient() {
         diet: fields.patientDiet,
         familyHistory: familyHistory,
         records: {},
-        addedBy: user?.email,
+        addedBy: user?.username,
         createdBy: user?.uid,
         createdAt: Date.now(),
-        sharedWith: sharedWith,
+        linkId: currentUserLinkId,
       };
 
       if (userIsSecretary) {
@@ -248,7 +257,6 @@ export function AddPatient() {
           isAlive: true,
         },
       ]);
-      setSelectedLinkedUser("");
       setOpenSections(["basic"]);
     } catch (error) {
       console.error("Error adding record:", error);
@@ -812,33 +820,33 @@ export function AddPatient() {
         </div>
       </Card>
 
-      {/* ── SHARE WITH LINKED USER ── */}
-      {!userIsAdmin && linkedUsers.length > 0 && (
+      {/* ── LINKED ACCOUNT NOTICE (replaces manual "share with" picker) ── */}
+      {!userIsAdmin && linkedUser && (
         <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
-          <Label className="text-base font-semibold text-blue-800 mb-3 block">
-            {userIsSecretary && "Share with Doctor"}
-            {userIsDoctor && "Share with Secretary"}
+          <Label className="text-base font-semibold text-blue-800 mb-1 flex items-center gap-2">
+            <Link2 className="w-4 h-4" />
+            {userIsSecretary ? "Linked Doctor" : "Linked Secretary"}
           </Label>
-          <Select
-            value={selectedLinkedUser}
-            onValueChange={setSelectedLinkedUser}
-          >
-            <SelectTrigger className="!bg-white !text-base md:!text-lg h-12 md:h-14 border-blue-300">
-              <SelectValue
-                placeholder={`Select a ${
-                  userIsSecretary ? "doctor" : "secretary"
-                } to share this record with`}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {linkedUsers.map((linkedUser) => (
-                <SelectItem key={linkedUser.id} value={linkedUser.id}>
-                  {linkedUser.firstName} {linkedUser.lastName}
-                  {linkedUser.field && ` - ${linkedUser.field}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <p className="text-blue-900 font-medium">
+            {linkedUser.firstName} {linkedUser.lastName}
+            {linkedUser.field && ` · ${linkedUser.field}`}
+          </p>
+          <p className="text-xs text-blue-600 mt-1">
+            This patient will automatically be visible to your linked{" "}
+            {userIsSecretary ? "doctor" : "secretary"} — no manual sharing
+            needed.
+          </p>
+        </div>
+      )}
+
+      {!userIsAdmin && !linkedUser && userIsSecretary && (
+        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800">
+            You are not linked to a doctor yet. Link with a doctor before adding
+            patients — a doctor and secretary can only be linked to one account
+            at a time.
+          </p>
         </div>
       )}
 
@@ -846,7 +854,7 @@ export function AddPatient() {
       <div className="flex justify-center mt-8 md:mt-10 pb-6">
         <Button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || (userIsSecretary && !currentUserLinkId)}
           className="!bg-[#00a896] hover:!bg-[#028090] !text-white !px-12 !py-6 !text-lg font-semibold rounded-xl transition-all disabled:opacity-50 shadow-md"
         >
           {isLoading ? "Saving..." : "Save Patient"}

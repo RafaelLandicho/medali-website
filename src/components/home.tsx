@@ -54,6 +54,7 @@ function LivePatientCard() {
   const [latestRecord, setLatestRecord] = React.useState<any | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const isAdmin = user?.type?.toLocaleLowerCase() === "admin";
 
   React.useEffect(() => {
     if (!user) return;
@@ -88,13 +89,11 @@ function LivePatientCard() {
     return () => unsub();
   }, [user]);
 
-  // Build the merged patient+record object for the drawer
   const drawerPatient = React.useMemo<(Patient & MedicalRecord) | null>(() => {
     if (!patient || !latestRecord) return null;
     const diagnosisData =
       latestRecord.diagnosis || latestRecord.patientDiagnosis || [];
     return {
-      // Patient fields
       id: patient.id,
       firstName: patient.firstName,
       lastName: patient.lastName,
@@ -157,6 +156,16 @@ function LivePatientCard() {
         <p className="text-white/40 text-sm font-semibold">No records yet</p>
         <p className="text-white/25 text-xs mt-1">
           Add your first patient to get started
+        </p>
+      </div>
+    );
+  }
+  if (isAdmin) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
+        <ClipboardList className="w-10 h-10 text-white/20 mx-auto mb-3" />
+        <p className="text-white text-sm font-semibold">
+          Admins cannot view patient records
         </p>
       </div>
     );

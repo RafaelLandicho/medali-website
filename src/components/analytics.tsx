@@ -15,7 +15,7 @@ import {
 } from "recharts";
 
 import { db } from "@/firebaseConfig";
-import { ref, onValue } from "firebase/database";
+import { ref, onValue, get } from "firebase/database";
 import { useAuth } from "@/auth/authprovider";
 import { Search } from "lucide-react";
 import {
@@ -34,6 +34,8 @@ import {
   Pill,
   Stethoscope,
   FileText,
+  Link2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Dialog,
@@ -42,6 +44,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import html2canvas from "html2canvas-pro";
 import jsPDF from "jspdf";
 
@@ -77,7 +80,25 @@ interface AnalyticsState {
   male: AnalyticsData[];
   female: AnalyticsData[];
   trendByDiagnosis: Record<string, AnalyticsData[]>;
+  ageCategories: AnalyticsData[]; // NEW: aggregated counts per age group
 }
+
+const EMPTY_ANALYTICS: AnalyticsState = {
+  diagnoses: [],
+  prescriptions: [],
+  drugs: [],
+  ages: [],
+  genders: [],
+  infant: [],
+  teen: [],
+  adult: [],
+  middleage: [],
+  senior: [],
+  male: [],
+  female: [],
+  trendByDiagnosis: {},
+  ageCategories: [],
+};
 
 const mapToArray = (map: Record<string, number>): AnalyticsData[] =>
   Object.entries(map)
@@ -155,10 +176,12 @@ function ReportDocument({
   analytics,
   generatedAt,
   dateRange,
+  scopeLabel,
 }: {
   analytics: AnalyticsState;
   generatedAt: string;
   dateRange: string;
+  scopeLabel: string;
 }) {
   const totalPatients = analytics.genders.reduce((s, d) => s + d.count, 0);
   const totalDiagnoses = analytics.diagnoses.reduce((s, d) => s + d.count, 0);
@@ -268,6 +291,7 @@ function ReportDocument({
         <p className="text-sm font-semibold text-[#004d45] mt-2">
           Generated: {generatedAt}
         </p>
+        <p className="text-xs text-gray-500 mt-0.5">Scope: {scopeLabel}</p>
         {dateRange && (
           <p className="text-xs text-gray-500 mt-0.5">Period: {dateRange}</p>
         )}
@@ -510,7 +534,7 @@ function Top5PieChart({ data }: { data: AnalyticsData[] }) {
           />
         </PieChart>
       </ResponsiveContainer>
-      {/* Legend rows — dark background with bigger font */}
+
       <div className="space-y-1 rounded-lg bg-[#e2e8f0] px-3 py-2">
         {chartData.map((d, i) => (
           <div
@@ -689,14 +713,12 @@ function BarList({
   const total = data.reduce((s, d) => s + d.count, 0);
   const top5 = data.slice(0, 5);
 
-  // Filter data based on search term (case‑insensitive)
   const filtered = React.useMemo(() => {
     if (!searchTerm.trim()) return [];
     const s = searchTerm.toLowerCase().trim();
     return data.filter((d) => d.label.toLowerCase().includes(s));
   }, [data, searchTerm]);
 
-  // Decide what to display: filtered results if searching, otherwise top 5
   const displayData = searchTerm.trim() ? filtered : top5;
 
   return (
@@ -777,7 +799,6 @@ function BarList({
         )}
       </div>
 
-      {}
       {!searchTerm && data.length > 5 && (
         <button
           onClick={() => setDialogOpen(true)}
@@ -863,7 +884,6 @@ function TrendChart({
           </button>
         )}
       </div>
-      {/* ── Chart on slate-100 so axes/labels pop ── */}
       <div className="flex-1 rounded-lg bg-slate-100 p-3">
         <ResponsiveContainer width="100%" height={220}>
           <AreaChart
@@ -1057,21 +1077,72 @@ export function Analytics() {
     [],
   );
 
-  const [analytics, setAnalytics] = React.useState<AnalyticsState>({
-    diagnoses: [],
-    prescriptions: [],
-    drugs: [],
-    ages: [],
-    genders: [],
-    infant: [],
-    teen: [],
-    adult: [],
-    middleage: [],
-    senior: [],
-    male: [],
-    female: [],
-    trendByDiagnosis: {},
-  });
+  // ── Global vs User (linked-account) scope ──
+  const [activeTab, setActiveTab] = React.useState<"global" | "user">("global");
+
+  const userIsAdmin = user?.type?.toLowerCase() === "admin";
+  const userIsSecretary = user?.type?.toLowerCase() === "secretary";
+  const userIsDoctor = user?.type?.toLowerCase() === "doctor";
+
+  // If user is admin, they cannot access analytics at all
+  if (userIsAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-10 max-w-md text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            Access Restricted
+          </h2>
+          <p className="text-gray-500">
+            Administrators are not permitted to view patient analytics.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Fetch the current user's linkId, and — for secretaries — the doctor
+  // they're linked to, so the "User Analytics" tab can be scoped correctly.
+  const [currentUserLinkId, setCurrentUserLinkId] = React.useState<
+    string | null
+  >(null);
+  const [linkedUser, setLinkedUser] = React.useState<any | null>(null);
+
+  React.useEffect(() => {
+    if (!user) return;
+    const userRef = ref(db, `users/${user.uid}`);
+    const unsubscribe = onValue(userRef, async (snapshot) => {
+      const userData = snapshot.val();
+      if (!userData) return;
+      const linkId: string | null = userData.linkId ?? null;
+      setCurrentUserLinkId(linkId);
+
+      if (!linkId) {
+        setLinkedUser(null);
+        return;
+      }
+
+      const allUsersSnap = await get(ref(db, "users"));
+      const allUsers = allUsersSnap.val() || {};
+      const partnerEntry = Object.entries(allUsers).find(
+        ([id, u]: [string, any]) => id !== user.uid && u.linkId === linkId,
+      );
+      setLinkedUser(
+        partnerEntry
+          ? { id: partnerEntry[0], ...(partnerEntry[1] as any) }
+          : null,
+      );
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  const [analytics, setAnalytics] =
+    React.useState<AnalyticsState>(EMPTY_ANALYTICS);
+
+  // Raw, unfiltered patients straight from the DB.
+  const [rawPatients, setRawPatients] = React.useState<any[] | null>(null);
 
   const filteredPatientsRef = React.useRef<any[]>([]);
 
@@ -1125,132 +1196,147 @@ export function Analytics() {
     [],
   );
 
+  // ── 1. Subscribe once to the raw patients tree ──────────────────────────
   React.useEffect(() => {
-    if (!user) return;
-
+    if (!user || userIsAdmin) return;
     const unsubPatients = onValue(ref(db, "patients"), (snapshot) => {
       const raw = snapshot.val();
-      if (!raw) {
-        setLoading(false);
-        return;
-      }
-
-      // ── 1. All top-level patient objects ────────────────────────────
-      const allPatients: any[] = Object.values(raw);
-
-      // ── 2. Flatten every consultation record, tagging it with the
-      //       parent patient's gender & age so demographic breakdowns work ──
-      const allRecords: any[] = [];
-      const allPrescriptions: any[] = [];
-
-      allPatients.forEach((patient: any) => {
-        if (!patient?.records || typeof patient.records !== "object") return;
-        Object.values(patient.records).forEach((record: any) => {
-          if (!record) return;
-
-          // Attach patient demographics so we can slice by gender/age later
-          allRecords.push({
-            ...record,
-            gender: patient.gender,
-            age: patient.age,
-          });
-
-          // Prescription lives as a child of the record
-          if (record.prescription) {
-            allPrescriptions.push({
-              ...record.prescription,
-              // Carry the record's timestamp so date-filtering works
-              createdAt: record.createdAt,
-            });
-          }
-        });
-      });
-
-      // ── 3. Apply optional date filter ────────────────────────────────
-      const filteredPatients = filterByDate(allPatients); // for gender / age pills
-      const filteredRecords = filterByDate(allRecords); // for diagnoses & trends
-      const filteredPrescriptions = filterByDate(allPrescriptions); // for Rx section
-
-      // Keep a ref so on-demand trend lookups use the latest filtered set
-      filteredPatientsRef.current = filteredRecords;
-
-      // ── 4. Demographic × diagnosis breakdown ─────────────────────────
-      const maleMap: Record<string, number> = {};
-      const femaleMap: Record<string, number> = {};
-      const infantMap: Record<string, number> = {};
-      const teenMap: Record<string, number> = {};
-      const adultMap: Record<string, number> = {};
-      const middleMap: Record<string, number> = {};
-      const seniorMap: Record<string, number> = {};
-
-      filteredRecords.forEach((r: any) => {
-        const gender = String(r.gender ?? "").toLowerCase();
-        const age = Number(r.age);
-        if (!Array.isArray(r?.diagnosis)) return;
-
-        r.diagnosis.forEach((d: any) => {
-          const dx = d?.diagnosis?.trim();
-          if (!dx) return;
-
-          if (gender === "male") maleMap[dx] = (maleMap[dx] || 0) + 1;
-          if (gender === "female") femaleMap[dx] = (femaleMap[dx] || 0) + 1;
-
-          if (age <= 1) infantMap[dx] = (infantMap[dx] || 0) + 1;
-          else if (age <= 20) teenMap[dx] = (teenMap[dx] || 0) + 1;
-          else if (age <= 44) adultMap[dx] = (adultMap[dx] || 0) + 1;
-          else if (age <= 64) middleMap[dx] = (middleMap[dx] || 0) + 1;
-          else seniorMap[dx] = (seniorMap[dx] || 0) + 1;
-        });
-      });
-
-      // ── 5. Commit everything to state ────────────────────────────────
-      setAnalytics((prev) => {
-        // Re-compute any already-selected trends against the fresh filtered set
-        const updatedTrends = { ...prev.trendByDiagnosis };
-        [...diagnosisTrends, ...prescriptionTrends].forEach((name) => {
-          updatedTrends[name] = getDiagnosisTrend(filteredRecords, name);
-        });
-
-        return {
-          ...prev,
-          // Consultation record diagnoses — read from flattened records
-          diagnoses: getDiagnosisCounts(filteredRecords),
-
-          // Prescription diagnoses — read from flattened prescriptions
-          // (each prescription object already has a .diagnosis array)
-          prescriptions: getDiagnosisCounts(filteredPrescriptions),
-
-          // Drugs — each prescription object already has a .drugs array
-          drugs: getDrugCounts(filteredPrescriptions),
-
-          // Demographics — still sourced from the top-level patient list
-          genders: getGenderCounts(filteredPatients),
-          ages: getAgeCounts(filteredPatients),
-
-          // Demographic × diagnosis slices
-          male: mapToArray(maleMap),
-          female: mapToArray(femaleMap),
-          infant: mapToArray(infantMap),
-          teen: mapToArray(teenMap),
-          adult: mapToArray(adultMap),
-          middleage: mapToArray(middleMap),
-          senior: mapToArray(seniorMap),
-
-          trendByDiagnosis: updatedTrends,
-        };
-      });
-
+      setRawPatients(raw ? Object.values(raw) : []);
       setLoading(false);
     });
-
-    // Single cleanup — no second prescriptions listener needed
     return () => unsubPatients();
-  }, [user, startDate, endDate]);
+  }, [user, userIsAdmin]);
+
+  // ── 2. Recompute analytics whenever the raw data, tab, date range, or
+  //       linked-account scope changes ─────────────────────────────────────
+  React.useEffect(() => {
+    if (rawPatients === null || userIsAdmin) return;
+
+    const scopedPatients =
+      activeTab === "global"
+        ? rawPatients
+        : rawPatients.filter(
+            (p: any) =>
+              p.createdBy === user?.uid ||
+              (!!p.linkId &&
+                !!currentUserLinkId &&
+                p.linkId === currentUserLinkId),
+          );
+
+    const allRecords: any[] = [];
+    const allPrescriptions: any[] = [];
+
+    scopedPatients.forEach((patient: any) => {
+      if (!patient?.records || typeof patient.records !== "object") return;
+      Object.values(patient.records).forEach((record: any) => {
+        if (!record) return;
+
+        allRecords.push({
+          ...record,
+          gender: patient.gender,
+          age: patient.age,
+        });
+
+        if (record.prescription) {
+          allPrescriptions.push({
+            ...record.prescription,
+            createdAt: record.createdAt,
+          });
+        }
+      });
+    });
+
+    const filteredPatients = filterByDate(scopedPatients);
+    const filteredRecords = filterByDate(allRecords);
+    const filteredPrescriptions = filterByDate(allPrescriptions);
+
+    filteredPatientsRef.current = filteredRecords;
+
+    const maleMap: Record<string, number> = {};
+    const femaleMap: Record<string, number> = {};
+    const infantMap: Record<string, number> = {};
+    const teenMap: Record<string, number> = {};
+    const adultMap: Record<string, number> = {};
+    const middleMap: Record<string, number> = {};
+    const seniorMap: Record<string, number> = {};
+
+    filteredRecords.forEach((r: any) => {
+      const gender = String(r.gender ?? "").toLowerCase();
+      const age = Number(r.age);
+      if (!Array.isArray(r?.diagnosis)) return;
+
+      r.diagnosis.forEach((d: any) => {
+        const dx = d?.diagnosis?.trim();
+        if (!dx) return;
+
+        if (gender === "male") maleMap[dx] = (maleMap[dx] || 0) + 1;
+        if (gender === "female") femaleMap[dx] = (femaleMap[dx] || 0) + 1;
+
+        if (age <= 1) infantMap[dx] = (infantMap[dx] || 0) + 1;
+        else if (age <= 20) teenMap[dx] = (teenMap[dx] || 0) + 1;
+        else if (age <= 44) adultMap[dx] = (adultMap[dx] || 0) + 1;
+        else if (age <= 64) middleMap[dx] = (middleMap[dx] || 0) + 1;
+        else seniorMap[dx] = (seniorMap[dx] || 0) + 1;
+      });
+    });
+
+    // ── Compute age categories for the "General" pie chart ──
+    const ageCategoryMap: Record<string, number> = {};
+    filteredPatients.forEach((p: any) => {
+      const age = Number(p.age);
+      let category = "";
+      if (age <= 1) category = "Infant";
+      else if (age <= 20) category = "Teen";
+      else if (age <= 44) category = "Adult";
+      else if (age <= 64) category = "Middle age";
+      else category = "Senior";
+      if (category) {
+        ageCategoryMap[category] = (ageCategoryMap[category] || 0) + 1;
+      }
+    });
+    const ageCategories = Object.entries(ageCategoryMap)
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count);
+
+    setAnalytics((prev) => {
+      const updatedTrends = { ...prev.trendByDiagnosis };
+      [...diagnosisTrends, ...prescriptionTrends].forEach((name) => {
+        updatedTrends[name] = getDiagnosisTrend(filteredRecords, name);
+      });
+
+      return {
+        ...prev,
+        diagnoses: getDiagnosisCounts(filteredRecords),
+        prescriptions: getDiagnosisCounts(filteredPrescriptions),
+        drugs: getDrugCounts(filteredPrescriptions),
+        genders: getGenderCounts(filteredPatients),
+        ages: getAgeCounts(filteredPatients),
+        male: mapToArray(maleMap),
+        female: mapToArray(femaleMap),
+        infant: mapToArray(infantMap),
+        teen: mapToArray(teenMap),
+        adult: mapToArray(adultMap),
+        middleage: mapToArray(middleMap),
+        senior: mapToArray(seniorMap),
+        trendByDiagnosis: updatedTrends,
+        ageCategories, // new field
+      };
+    });
+  }, [
+    rawPatients,
+    startDate,
+    endDate,
+    activeTab,
+    currentUserLinkId,
+    user,
+    userIsAdmin,
+    filterByDate,
+    diagnosisTrends,
+    prescriptionTrends,
+  ]);
 
   const handleGenerateReport = async () => {
     setIsGenerating(true);
-
-    // Wait a moment for any pending renders
     await new Promise((r) => setTimeout(r, 300));
 
     const element = reportRef.current;
@@ -1261,7 +1347,7 @@ export function Analytics() {
 
     try {
       const canvas = await html2canvas(element, {
-        scale: 2, // High quality
+        scale: 2,
         useCORS: true,
         backgroundColor: "#ffffff",
         scrollY: 0,
@@ -1274,7 +1360,6 @@ export function Analytics() {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
 
-      // 2. Calculate dimensions
       const imgWidth = pdfWidth;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
@@ -1284,16 +1369,15 @@ export function Analytics() {
       pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
       heightLeft -= pdfHeight;
 
-      // 4. Add extra pages if content overflows
       while (heightLeft > 0) {
-        position = heightLeft - imgHeight; // shift the image up
+        position = heightLeft - imgHeight;
         pdf.addPage();
         pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
         heightLeft -= pdfHeight;
       }
 
-      // 5. Save the PDF
-      const fileName = `Medali_Analytics_Report_${new Date().toISOString().split("T")[0]}.pdf`;
+      const scopeSuffix = activeTab === "global" ? "Global" : "User";
+      const fileName = `Medali_Analytics_Report_${scopeSuffix}_${new Date().toISOString().split("T")[0]}.pdf`;
       pdf.save(fileName);
     } catch (error) {
       console.error("Report generation failed:", error);
@@ -1313,6 +1397,15 @@ export function Analytics() {
     startDate || endDate
       ? `${startDate ? startDate.toLocaleDateString() : "All time"} – ${endDate ? endDate.toLocaleDateString() : "Present"}`
       : "";
+
+  const scopeLabel =
+    activeTab === "global"
+      ? "Global (all patients)"
+      : userIsSecretary
+        ? linkedUser
+          ? `Linked Doctor — ${linkedUser.firstName} ${linkedUser.lastName}`
+          : "Linked Doctor — not linked"
+        : `My Patients — ${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim();
 
   const ageDataMap = {
     general: analytics.ages,
@@ -1342,6 +1435,8 @@ export function Analytics() {
   const femaleCount =
     analytics.genders.find((g) => g.label.toLowerCase() === "female")?.count ??
     0;
+
+  const userTabLocked = userIsSecretary && !linkedUser;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1427,6 +1522,34 @@ export function Analytics() {
             </button>
           </div>
         </div>
+
+        <div className="container mx-auto px-4 pb-3">
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as "global" | "user")}
+          >
+            <TabsList className="!bg-gray-100">
+              <TabsTrigger
+                value="global"
+                className="flex items-center gap-1.5 !bg-white text-black"
+              >
+                <Users className="w-3.5 h-3.5" />
+                Global Analytics
+              </TabsTrigger>
+              {!userIsAdmin && (
+                <TabsTrigger
+                  value="user"
+                  className="flex items-center gap-1.5 !bg-white text-black"
+                >
+                  <Link2 className="w-3.5 h-3.5" />
+                  {userIsSecretary
+                    ? "Linked Doctor's Analytics"
+                    : "User Analytics"}
+                </TabsTrigger>
+              )}
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
 
       {/* ── Hidden report ── */}
@@ -1439,11 +1562,46 @@ export function Analytics() {
             analytics={analytics}
             generatedAt={generatedAt}
             dateRange={dateRange}
+            scopeLabel={scopeLabel}
           />
         </div>
       </div>
 
       <div className="container mx-auto px-4 py-6 space-y-6">
+        {/* ── Scope banner ── */}
+        {activeTab === "user" && (
+          <>
+            {userTabLocked ? (
+              <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-800">
+                  You are not linked to a doctor yet, so there's no linked data
+                  to show. Link with a doctor to view their analytics here.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-blue-700 flex-shrink-0" />
+                <p className="text-sm text-blue-800">
+                  {userIsSecretary ? (
+                    <>
+                      Analytics of:{" "}
+                      <strong>
+                        {linkedUser?.firstName} {linkedUser?.lastName}
+                      </strong>
+                      .
+                    </>
+                  ) : (
+                    <>
+                      Showing analytics for patients you personally registered.
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
         {/* ══ Demographics ══ */}
         <SectionCard
           title="Patient Demographics"
@@ -1489,7 +1647,15 @@ export function Analytics() {
                   </button>
                 ))}
               </div>
-              {ageDataMap[selectedAgeGroup].length ? (
+              {selectedAgeGroup === "general" ? (
+                analytics.ageCategories.length ? (
+                  <Top5PieChart data={analytics.ageCategories} />
+                ) : (
+                  <p className="text-sm font-semibold text-gray-600 py-4 text-center">
+                    No age data available
+                  </p>
+                )
+              ) : ageDataMap[selectedAgeGroup].length ? (
                 <Top5PieChart
                   data={ageDataMap[selectedAgeGroup].map((d) => ({
                     ...d,
@@ -1626,9 +1792,6 @@ export function Analytics() {
                 </p>
               )}
             </SubCard>
-            {/* <SubCard title="All prescribed drugs">
-              <BarList data={analytics.drugs} title="Drug frequency" />
-            </SubCard> */}
           </div>
         </SectionCard>
       </div>

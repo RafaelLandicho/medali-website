@@ -122,7 +122,11 @@ export type MedicalRecord = {
   diet: boolean;
   createdBy?: string;
   createdAt?: number;
-  sharedWith?: string[];
+  updatedAt?: number;
+  approvedBy?: string;
+  // The linkId of the doctor/secretary pair that owns this record. Anyone
+  // whose current linkId matches this value can see the record.
+  linkId?: string | null;
   prescription?: Prescription;
 };
 
@@ -764,6 +768,19 @@ const disableEdit = (record: MedicalRecord): boolean => {
   return hoursDiff >= 24;
 };
 
+const formatDate = (value?: number | string): string => {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return typeof value === "string" ? value : "—";
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
 const StatCard = ({
   label,
   value,
@@ -1200,11 +1217,52 @@ const buildColumns = (): ColumnDef<MedicalRecord>[] => [
     cell: ({ row }) => <RiskIndicators record={row.original} />,
   },
   {
+    accessorKey: "createdBy",
+    header: "Created By",
+    cell: ({ row }) => (
+      <span className="text-sm text-gray-700">
+        {row.original.createdBy || row.original.addedBy || "—"}
+      </span>
+    ),
+  },
+  {
     accessorKey: "addedBy",
     header: "Added By",
     cell: ({ row }) => (
       <span className="text-sm text-gray-700">
         {row.original.addedBy || "—"}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "approvedBy",
+    header: "Approved By",
+    cell: ({ row }) => (
+      <span className="text-sm text-gray-700">
+        {row.original.approvedBy || "—"}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "createdAt",
+    header: "Created At",
+    sortingFn: (a, b) =>
+      (a.original.createdAt ?? 0) - (b.original.createdAt ?? 0),
+    cell: ({ row }) => (
+      <span className="text-xs text-gray-500 whitespace-nowrap">
+        {formatDate(row.original.createdAt)}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "updatedAt",
+    header: "Updated At",
+    sortingFn: (a, b) =>
+      (a.original.updatedAt ?? a.original.createdAt ?? 0) -
+      (b.original.updatedAt ?? b.original.createdAt ?? 0),
+    cell: ({ row }) => (
+      <span className="text-xs text-gray-500 whitespace-nowrap">
+        {formatDate(row.original.updatedAt ?? row.original.createdAt)}
       </span>
     ),
   },
@@ -1322,6 +1380,17 @@ const prescriptionColumns: ColumnDef<MedicalRecord>[] = [
     ),
   },
   {
+    id: "createdBy",
+    header: "Created By",
+    cell: ({ row }) => (
+      <span className="text-sm text-gray-700">
+        {row.original.prescription?.createdBy ||
+          row.original.prescription?.addedBy ||
+          "—"}
+      </span>
+    ),
+  },
+  {
     id: "addedBy",
     header: "Added By",
     cell: ({ row }) => (
@@ -1331,11 +1400,38 @@ const prescriptionColumns: ColumnDef<MedicalRecord>[] = [
     ),
   },
   {
-    id: "updatedAt",
-    header: "Date",
+    id: "approvedBy",
+    header: "Approved By",
+    cell: ({ row }) => (
+      <span className="text-sm text-gray-700">
+        {(row.original.prescription as any)?.approvedBy || "—"}
+      </span>
+    ),
+  },
+  {
+    id: "createdAt",
+    header: "Created At",
+    sortingFn: (a, b) =>
+      (a.original.createdAt ?? 0) - (b.original.createdAt ?? 0),
     cell: ({ row }) => (
       <span className="text-xs text-gray-500 whitespace-nowrap">
-        {row.original.prescription?.updatedAt || "—"}
+        {formatDate(row.original.createdAt)}
+      </span>
+    ),
+  },
+  {
+    id: "updatedAt",
+    header: "Updated At",
+    sortingFn: (a, b) => {
+      const av = a.original.prescription?.updatedAt ?? a.original.updatedAt;
+      const bv = b.original.prescription?.updatedAt ?? b.original.updatedAt;
+      return new Date(av ?? 0).getTime() - new Date(bv ?? 0).getTime();
+    },
+    cell: ({ row }) => (
+      <span className="text-xs text-gray-500 whitespace-nowrap">
+        {row.original.prescription?.updatedAt ||
+          formatDate(row.original.updatedAt) ||
+          "—"}
       </span>
     ),
   },
@@ -1354,7 +1450,9 @@ export function ConsultationRecords() {
   const [records, setRecords] = React.useState<MedicalRecord[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [sorting, setSorting] = React.useState<SortingState>([
+    { id: "updatedAt", desc: true },
+  ]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
   );
@@ -1364,7 +1462,9 @@ export function ConsultationRecords() {
   const [rowSelection, setRowSelection] = React.useState({});
   const [searchValue, setSearchValue] = React.useState("");
 
-  const [prescSorting, setPrescSorting] = React.useState<SortingState>([]);
+  const [prescSorting, setPrescSorting] = React.useState<SortingState>([
+    { id: "updatedAt", desc: true },
+  ]);
   const [prescColumnFilters, setPrescColumnFilters] =
     React.useState<ColumnFiltersState>([]);
   const [prescColumnVisibility, setPrescColumnVisibility] = React.useState<
@@ -1383,6 +1483,8 @@ export function ConsultationRecords() {
         setLoading(false);
         return;
       }
+      const currentUserLinkId: string | null = currentUser.linkId ?? null;
+
       innerUnsub = onValue(
         ref(db, `patients/${patient.id}/records`),
         (snapshot) => {
@@ -1400,17 +1502,26 @@ export function ConsultationRecords() {
                       ? diagnosisData
                       : [],
                     createdAt: value.createdAt || Date.now(),
+                    updatedAt: value.updatedAt || value.createdAt || Date.now(),
                   };
                 })
                 .filter((record) => {
                   if (currentUser.type === "admin") return true;
-                  const sharedWith = record.sharedWith || [];
+                  // Visible if the current user created it, OR the record's
+                  // owning linkId matches the current user's linkId.
                   return (
                     record.createdBy === user.uid ||
-                    sharedWith.includes(user.uid)
+                    (!!record.linkId &&
+                      !!currentUserLinkId &&
+                      record.linkId === currentUserLinkId)
                   );
                 })
-                .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+                // Latest created/updated first
+                .sort(
+                  (a, b) =>
+                    (b.updatedAt ?? b.createdAt ?? 0) -
+                    (a.updatedAt ?? a.createdAt ?? 0),
+                )
             : [];
           setRecords(fetched);
           setLoading(false);
@@ -1442,7 +1553,18 @@ export function ConsultationRecords() {
   });
 
   const prescriptionRecords = React.useMemo(
-    () => records.filter((r) => !!r.prescription),
+    () =>
+      records
+        .filter((r) => !!r.prescription)
+        .sort((a, b) => {
+          const av = a.prescription?.updatedAt
+            ? new Date(a.prescription.updatedAt).getTime()
+            : (a.updatedAt ?? a.createdAt ?? 0);
+          const bv = b.prescription?.updatedAt
+            ? new Date(b.prescription.updatedAt).getTime()
+            : (b.updatedAt ?? b.createdAt ?? 0);
+          return bv - av;
+        }),
     [records],
   );
 
@@ -1760,6 +1882,32 @@ export function ConsultationRecords() {
                             patientName={patientName}
                           />
                         </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-2 border-t border-gray-100 text-[11px] text-gray-500">
+                          <div>
+                            <span className="text-gray-400">Created</span>
+                            <p className="text-gray-700 font-medium">
+                              {formatDate(r.createdAt)}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Updated</span>
+                            <p className="text-gray-700 font-medium">
+                              {formatDate(r.updatedAt ?? r.createdAt)}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Created by</span>
+                            <p className="text-gray-700 font-medium truncate">
+                              {r.createdBy || r.addedBy || "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Approved by</span>
+                            <p className="text-gray-700 font-medium truncate">
+                              {r.approvedBy || "—"}
+                            </p>
+                          </div>
+                        </div>
                         <div className="pt-2 border-t border-gray-100">
                           <ConsultationRecordActions records={r} />
                         </div>
@@ -1917,15 +2065,33 @@ export function ConsultationRecords() {
                         )}
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs pt-2 border-t border-gray-100">
                           <div>
+                            <span className="text-gray-400">Created by</span>
+                            <p className="text-gray-700 font-medium truncate">
+                              {p.createdBy || p.addedBy || "—"}
+                            </p>
+                          </div>
+                          <div>
                             <span className="text-gray-400">Added by</span>
                             <p className="text-gray-700 font-medium truncate">
                               {p.addedBy || "—"}
                             </p>
                           </div>
                           <div>
-                            <span className="text-gray-400">Date</span>
+                            <span className="text-gray-400">Approved by</span>
                             <p className="text-gray-700 font-medium truncate">
-                              {p.updatedAt || "—"}
+                              {(p as any).approvedBy || "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Created</span>
+                            <p className="text-gray-700 font-medium truncate">
+                              {formatDate(r.createdAt)}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Updated</span>
+                            <p className="text-gray-700 font-medium truncate">
+                              {p.updatedAt || formatDate(r.updatedAt) || "—"}
                             </p>
                           </div>
                         </div>

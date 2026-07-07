@@ -99,29 +99,27 @@ export type Patient = {
   province: string;
   telephone: string;
   addedBy: string;
+  createdBy?: string;
+  createdAt?: number;
+  updatedAt?: number;
+  approvedBy?: string;
+
+  linkId?: string | null;
 } & Record<string, any>;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const SeverityBadge = ({ severity }: { severity: string }) => {
-  const s = severity?.toLowerCase() ?? "";
-  const styles =
-    s === "severe" || s === "critical"
-      ? "bg-red-100 text-red-700 border-red-200"
-      : s === "moderate"
-        ? "bg-amber-100 text-amber-700 border-amber-200"
-        : s === "mild" || s === "low"
-          ? "bg-green-100 text-green-700 border-green-200"
-          : "bg-gray-100 text-gray-500 border-gray-200";
-
-  if (!severity) return null;
-  return (
-    <span
-      className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded border uppercase tracking-wide ${styles}`}
-    >
-      {severity}
-    </span>
-  );
+const formatDate = (value?: number | string): string => {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return typeof value === "string" ? value : "—";
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 };
 
 const PatientAvatar = ({
@@ -150,32 +148,6 @@ const PatientAvatar = ({
   );
 };
 
-// const RiskIndicators = ({ patient }: { patient: Patient }) => (
-//   <div className="flex items-center gap-1 flex-wrap">
-//     {patient.isTBPositive && (
-//       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">
-//         <Biohazard className="w-2.5 h-2.5" />
-//         TB+
-//       </span>
-//     )}
-//     {patient.drugAllergy && (
-//       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-200">
-//         <AlertTriangle className="w-2.5 h-2.5" />
-//         Drug
-//       </span>
-//     )}
-//     {patient.foodAllergy && (
-//       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-yellow-100 text-yellow-700 border border-yellow-200">
-//         <UtensilsCrossed className="w-2.5 h-2.5" />
-//         Food
-//       </span>
-//     )}
-//     {!patient.isTBPositive && !patient.drugAllergy && !patient.foodAllergy && (
-//       <span className="text-gray-300 text-xs">—</span>
-//     )}
-//   </div>
-// );
-
 // ─── Stats Bar ────────────────────────────────────────────────────────────────
 
 const StatsBar = ({
@@ -186,9 +158,6 @@ const StatsBar = ({
   isMobile: boolean;
 }) => {
   const total = patients.length;
-  // const tbPositive = patients.filter((p) => p.isTBPositive).length;
-  // const drugAllergy = patients.filter((p) => p.drugAllergy).length;
-  // const foodAllergy = patients.filter((p) => p.foodAllergy).length;
 
   const stats = [
     {
@@ -252,8 +221,6 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
     }
   };
 
-  // const primaryDiag = patient.patientDiagnosis?.[0];
-
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
       {/* Top row: avatar + name + actions */}
@@ -271,10 +238,6 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
           <p className="text-xs text-gray-400 mt-0.5">
             {patient.gender} · {patient.age} yrs · {patient.birthdate}
           </p>
-          {/* Risk flags */}
-          {/* <div className="mt-1.5">
-            <RiskIndicators patient={patient} />
-          </div> */}
         </div>
         {/* Action buttons */}
         <div className="flex items-center gap-1 shrink-0">
@@ -311,7 +274,6 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
         </div>
       </div>
 
-      {/* Detail rows */}
       <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
         <div>
           <span className="text-gray-400">Contact</span>
@@ -325,47 +287,44 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
             {patient.addedBy || "—"}
           </p>
         </div>
+        <div>
+          <span className="text-gray-400">Created by</span>
+          <p className="text-gray-700 font-medium truncate">
+            {patient.createdBy || patient.addedBy || "—"}
+          </p>
+        </div>
+        <div>
+          <span className="text-gray-400">Approved by</span>
+          <p className="text-gray-700 font-medium truncate">
+            {patient.approvedBy || "—"}
+          </p>
+        </div>
+        <div>
+          <span className="text-gray-400">Created</span>
+          <p className="text-gray-700 font-medium truncate">
+            {formatDate(patient.createdAt)}
+          </p>
+        </div>
+        <div>
+          <span className="text-gray-400">Updated</span>
+          <p className="text-gray-700 font-medium truncate">
+            {formatDate(patient.updatedAt ?? patient.createdAt)}
+          </p>
+        </div>
         <div className="col-span-2">
           <span className="text-gray-400">Address</span>
           <p className="text-gray-700 font-medium truncate">
             {patient.address || "—"}
           </p>
         </div>
-        {/* {primaryDiag && (
-          <div className="col-span-2">
-            <span className="text-gray-400">Diagnosis</span>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <p className="text-gray-700 font-medium truncate">
-                {primaryDiag.diagnosis}
-              </p>
-              <SeverityBadge severity={primaryDiag.severity} />
-            </div>
-            {patient.patientDiagnosis.length > 1 && (
-              <p className="text-gray-400 text-[10px] mt-0.5">
-                +{patient.patientDiagnosis.length - 1} more
-              </p>
-            )}
-          </div>
-        )} */}
       </div>
 
       {/* Drawers / dialogs */}
-      {/* <FullRecordsDrawer
-        open={openUser}
-        onOpenChange={setOpenUser}
-        patient={patient}
-      /> */}
-
       <EditRecordsSheet
         open={openEdit}
         onOpenChange={setOpenEdit}
         patient={patient}
       />
-      {/* <PrescriptionDrawer
-        open={openPrescription}
-        onOpenChange={setOpenPrescription}
-        patient={patient}
-      /> */}
 
       <Dialog open={openDelete} onOpenChange={setOpenDelete}>
         <DialogContent>
@@ -398,54 +357,6 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
   );
 };
 
-// ─── CSV Export ───────────────────────────────────────────────────────────────
-
-// const exportToCSV = (patients: Patient[]) => {
-//   const headers = [
-//     "First Name",
-//     "Last Name",
-//     "Gender",
-//     "Age",
-//     "Birth Date",
-//     "Address",
-//     "Contact Number",
-//     "Added By",
-//     "Diagnosis",
-
-//     "Drug Allergy",
-//     "Food Allergy",
-//   ];
-//   const rows = patients.map((p) => [
-//     p.firstName,
-//     p.lastName,
-//     p.gender,
-//     p.age,
-//     p.birthdate,
-//     p.address,
-//     p.telephone,
-//     p.addedBy,
-//     (p.patientDiagnosis ?? [])
-//       .map((d) => `${d.diagnosis}${d.severity ? ` (${d.severity})` : ""}`)
-//       .join("; "),
-//     p.isTBPositive ? "Yes" : "No",
-//     p.drugAllergy ? "Yes" : "No",
-//     p.foodAllergy ? "Yes" : "No",
-//   ]);
-//   const csv = [headers, ...rows]
-//     .map((row) =>
-//       row.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","),
-//     )
-//     .join("\n");
-//   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-//   const url = URL.createObjectURL(blob);
-//   const a = document.createElement("a");
-//   a.href = url;
-//   a.download = `medical-records-${new Date().toISOString().slice(0, 10)}.csv`;
-//   a.click();
-//   URL.revokeObjectURL(url);
-//   toast.success("Records exported successfully!");
-// };
-
 // ─── Desktop Action Buttons ───────────────────────────────────────────────────
 
 const PatientActions = ({ patient }: { patient: Patient }) => {
@@ -459,74 +370,7 @@ const PatientActions = ({ patient }: { patient: Patient }) => {
     user?.type?.toLowerCase() === "admin";
 
   return (
-    <div className="flex items-center gap-1">
-      {/* <button
-        onClick={() => setOpenUser(true)}
-        title="View patient"
-        className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
-      >
-        <UserIcon className="w-3.5 h-3.5 text-[#00a896]" />
-      </button> */}
-      {/* <FullRecordsDrawer
-        open={openUser}
-        onOpenChange={setOpenUser}
-        patient={patient}
-      /> */}
-
-      {/* <button
-        onClick={() => setOpenEdit(true)}
-        title="Edit patient"
-        className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
-      >
-        <PenIcon className="w-3.5 h-3.5 text-[#00a896]" />
-      </button>
-      <EditRecordsSheet
-        open={openEdit}
-        onOpenChange={setOpenEdit}
-        patient={patient}
-      /> */}
-
-      {userIsDoctor && (
-        <div>
-          {/* <button
-            onClick={() => setOpenPrescription(true)}
-            title="Prescriptions"
-            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
-          >
-            <PillIcon className="w-3.5 h-3.5 text-[#00a896]" />
-          </button> */}
-
-          {/* <button
-            onClick={() =>
-              navigate(`/add-consultation-record/${patient.id}`, {
-                state: patient,
-              })
-            }
-            title="Consultation Records"
-            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5 text-[#00a896]" />
-          </button>
-          <button
-            onClick={() => setOpenUser(true)}
-            title="Edit patient"
-            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 !bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
-          >
-            <PenIcon className="w-3.5 h-3.5 text-[#00a896]" />
-          </button>
-          <AddRecordsDrawer
-            open={openUser}
-            onOpenChange={setOpenUser}
-            patient={patient}
-          /> */}
-        </div>
-      )}
-      {/* <PrescriptionDrawer
-        open={openPrescription}
-        onOpenChange={setOpenPrescription}
-        patient={patient}
-      /> */}
-    </div>
+    <div className="flex items-center gap-1">{userIsDoctor && <div />}</div>
   );
 };
 
@@ -613,85 +457,7 @@ const ClickName = ({ patient }: { patient: Patient }) => {
   );
 };
 
-export const columns: ColumnDef<Patient>[] = [
-  // {
-  //   id: "actions",
-  //   header: "",
-  //   enableSorting: false,
-  //   enableHiding: false,
-  //   cell: ({ row }) => <PatientActions patient={row.original} />,
-  // },
-  {
-    id: "patient",
-    header: "Patient",
-    enableHiding: false,
-    cell: ({ row }) => (
-      <div className="flex items-center gap-2">
-        <PatientAvatar
-          firstName={row.original.firstName}
-          lastName={row.original.lastName}
-          gender={row.original.gender}
-        />
-        <div className="leading-tight">
-          <p className="font-medium text-gray-800 text-sm">
-            <ClickName patient={row.original} />
-          </p>
-          <p className="text-xs text-gray-400">{row.original.gender}</p>
-        </div>
-      </div>
-    ),
-  },
-  { accessorKey: "age", header: "Age" },
-  { accessorKey: "birthdate", header: "Birth Date" },
-  { accessorKey: "address", header: "Address" },
-  { accessorKey: "telephone", header: "Contact Number" },
-  { accessorKey: "addedBy", header: "Added By" },
-  // {
-  //   accessorKey: "patientDiagnosis",
-  //   header: "Diagnosis",
-  //   cell: ({ row }) => {
-  //     const diagnosis = row.original.patientDiagnosis;
-  //     if (!diagnosis?.length)
-  //       return <span className="text-gray-300 text-xs">No diagnosis</span>;
-  //     return (
-  //       <div className="space-y-1.5 max-w-[280px]">
-  //         {diagnosis.map((diag, i) => (
-  //           <div key={i} className="flex flex-col gap-0.5">
-  //             <span className="text-sm font-medium text-gray-800">
-  //               {diag.diagnosis}
-  //             </span>
-  //             <div className="flex items-center gap-1.5 flex-wrap">
-  //               <SeverityBadge severity={diag.severity} />
-  //               {diag.notes && (
-  //                 <span className="text-[11px] text-gray-400 italic">
-  //                   {diag.notes}
-  //                 </span>
-  //               )}
-  //             </div>
-  //           </div>
-  //         ))}
-  //       </div>
-  //     );
-  //   },
-  // },
-  // {
-  //   id: "risks",
-  //   header: "Risk Flags",
-  //   enableSorting: false,
-  //   cell: ({ row }) => <RiskIndicators patient={row.original} />,
-  // },
-  {
-    id: "delete",
-    header: "",
-    enableSorting: false,
-    enableHiding: false,
-    cell: ({ row }) => <DeletePatient patient={row.original} />,
-  },
-];
-
 // ─── Main Component ───────────────────────────────────────────────────────────
-
-// Replace your entire MedicalRecords component with this updated version:
 
 export function MedicalRecords() {
   const { user } = useAuth();
@@ -699,7 +465,7 @@ export function MedicalRecords() {
   const isMobile = useIsMobile();
   const [data, setData] = React.useState<Patient[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [filter, setFilter] = React.useState("patient"); // Changed to 'patient'
+  const [filter, setFilter] = React.useState("patient");
 
   React.useEffect(() => {
     if (!user) return;
@@ -713,6 +479,7 @@ export function MedicalRecords() {
         setLoading(false);
         return;
       }
+      const currentUserLinkId: string | null = currentUser.linkId ?? null;
 
       const unsubscribePatients = onValue(patientsRef, (snapshot) => {
         const raw = snapshot.val();
@@ -727,16 +494,25 @@ export function MedicalRecords() {
                   patientDiagnosis: Array.isArray(diagnosisData)
                     ? diagnosisData
                     : [],
+                  createdAt: value.createdAt ?? null,
+                  updatedAt: value.updatedAt ?? value.createdAt ?? null,
                 };
               })
-              .filter((patient) => {
-                if (currentUser.type === "admin") return true;
-                const sharedWith = patient.sharedWith || [];
+              .filter((record) => {
+                if (currentUser.type === "admin") return false;
+
                 return (
-                  patient.createdBy === user.uid ||
-                  sharedWith.includes(user.uid)
+                  record.createdBy === user.uid ||
+                  (!!record.linkId &&
+                    !!currentUserLinkId &&
+                    record.linkId === currentUserLinkId)
                 );
               })
+              .sort(
+                (a, b) =>
+                  (b.updatedAt ?? b.createdAt ?? 0) -
+                  (a.updatedAt ?? a.createdAt ?? 0),
+              )
           : [];
         setData(patients);
         setLoading(false);
@@ -748,7 +524,9 @@ export function MedicalRecords() {
     return () => unsubscribe();
   }, [user]);
 
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [sorting, setSorting] = React.useState<SortingState>([
+    { id: "updatedAt", desc: true },
+  ]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
   );
@@ -757,7 +535,6 @@ export function MedicalRecords() {
   >({});
   const [rowSelection, setRowSelection] = React.useState({});
 
-  // Updated columns with filterFn for patient column
   const columnsWithFilters: ColumnDef<Patient>[] = [
     {
       id: "actions",
@@ -806,52 +583,50 @@ export function MedicalRecords() {
       header: "Contact Number",
       filterFn: "includesString",
     },
+    {
+      accessorKey: "createdBy",
+      header: "Created By",
+      filterFn: "includesString",
+      cell: ({ row }) => (
+        <span className="text-sm text-gray-700">
+          {row.original.createdBy || row.original.addedBy || "—"}
+        </span>
+      ),
+    },
     { accessorKey: "addedBy", header: "Added By", filterFn: "includesString" },
-    // {
-    //   accessorKey: "patientDiagnosis",
-    //   header: "Diagnosis",
-    //   filterFn: (row, id, filterValue) => {
-    //     if (!filterValue) return true;
-    //     const diagnoses = row.original.patientDiagnosis || [];
-    //     const searchTerm = String(filterValue).toLowerCase();
-    //     return diagnoses.some(
-    //       (d) =>
-    //         d.diagnosis.toLowerCase().includes(searchTerm) ||
-    //         d.severity?.toLowerCase().includes(searchTerm) ||
-    //         d.notes?.toLowerCase().includes(searchTerm),
-    //     );
-    //   },
-    //   cell: ({ row }) => {
-    //     const diagnosis = row.original.patientDiagnosis;
-    //     if (!diagnosis?.length)
-    //       return <span className="text-gray-300 text-xs">No diagnosis</span>;
-    //     return (
-    //       <div className="space-y-1.5 max-w-[280px]">
-    //         {diagnosis.map((diag, i) => (
-    //           <div key={i} className="flex flex-col gap-0.5">
-    //             <span className="text-sm font-medium text-gray-800">
-    //               {diag.diagnosis}
-    //             </span>
-    //             <div className="flex items-center gap-1.5 flex-wrap">
-    //               <SeverityBadge severity={diag.severity} />
-    //               {diag.notes && (
-    //                 <span className="text-[11px] text-gray-400 italic">
-    //                   {diag.notes}
-    //                 </span>
-    //               )}
-    //             </div>
-    //           </div>
-    //         ))}
-    //       </div>
-    //     );
-    //   },
-    // },
-    // {
-    //   id: "risks",
-    //   header: "Risk Flags",
-    //   enableSorting: false,
-    //   cell: ({ row }) => <RiskIndicators patient={row.original} />,
-    // },
+    {
+      accessorKey: "approvedBy",
+      header: "Approved By",
+      filterFn: "includesString",
+      cell: ({ row }) => (
+        <span className="text-sm text-gray-700">
+          {row.original.approvedBy || "—"}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created At",
+      sortingFn: (a, b) =>
+        (a.original.createdAt ?? 0) - (b.original.createdAt ?? 0),
+      cell: ({ row }) => (
+        <span className="text-xs text-gray-500 whitespace-nowrap">
+          {formatDate(row.original.createdAt)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "updatedAt",
+      header: "Updated At",
+      sortingFn: (a, b) =>
+        (a.original.updatedAt ?? a.original.createdAt ?? 0) -
+        (b.original.updatedAt ?? b.original.createdAt ?? 0),
+      cell: ({ row }) => (
+        <span className="text-xs text-gray-500 whitespace-nowrap">
+          {formatDate(row.original.updatedAt ?? row.original.createdAt)}
+        </span>
+      ),
+    },
     {
       id: "delete",
       header: "",
@@ -890,7 +665,9 @@ export function MedicalRecords() {
     { id: "birthdate", label: "Birth Date" },
     { id: "address", label: "Address" },
     { id: "telephone", label: "Contact Number" },
+    { id: "createdBy", label: "Created By" },
     { id: "addedBy", label: "Added By" },
+    { id: "approvedBy", label: "Approved By" },
     { id: "patientDiagnosis", label: "Diagnosis" },
   ];
 
@@ -992,14 +769,6 @@ export function MedicalRecords() {
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        {/* 
-        <button
-          onClick={() => exportToCSV(filteredRows.map((r) => r.original))}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium !bg-[#00a896] !text-white border border-gray-200 rounded-lg shadow-sm hover:opacity-90 transition sm:ml-auto flex-1 sm:flex-none justify-center"
-        >
-          <Download className="w-3.5 h-3.5" />
-          {isMobile ? "CSV" : "Export CSV"}
-        </button> */}
       </div>
     </div>
   );
@@ -1058,7 +827,7 @@ export function MedicalRecords() {
         <>
           {filteredRows.length === 0 ? (
             <div className="rounded-xl border border-gray-200 bg-white p-6">
-              <EmptyRecords>{/* <AddRecordsDrawer /> */}</EmptyRecords>
+              <EmptyRecords />
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -1130,9 +899,7 @@ export function MedicalRecords() {
                         colSpan={columnsWithFilters.length}
                         className="h-32 text-center"
                       >
-                        <EmptyRecords>
-                          {/* <AddRecordsDrawer /> */}
-                        </EmptyRecords>
+                        <EmptyRecords />
                       </TableCell>
                     </TableRow>
                   )}

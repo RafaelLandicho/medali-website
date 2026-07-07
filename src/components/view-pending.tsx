@@ -90,6 +90,9 @@ export type PendingPatient = {
   createdBy?: string;
   createdAt?: number;
   sharedWith?: string[];
+  // Shared doctor/secretary pair id — anyone whose current linkId matches
+  // this value should be able to see and act on this pending patient.
+  linkId?: string | null;
 };
 
 export type PendingRecord = {
@@ -123,6 +126,8 @@ export type PendingRecord = {
   createdBy?: string;
   createdAt?: number;
   status?: string;
+  // Shared doctor/secretary pair id — see PendingPatient.linkId above.
+  linkId?: string | null;
 };
 
 export type PendingUpdate = {
@@ -1050,6 +1055,12 @@ export function PendingRecords() {
       }
 
       const isAdminUser = currentUser.type === "admin";
+      // Shared doctor/secretary pair id for the current user. A doctor
+      // should be able to approve/reject anything their linked secretary
+      // submitted (and vice versa), not just their own submissions —
+      // matching on linkId (rather than sharedWith, which is never
+      // populated by the add-patient/add-record forms) makes that work.
+      const linkId: string | null = currentUser.linkId ?? null;
 
       unsubPatients = onValue(ref(db, "pending/patients"), (snap) => {
         const raw = snap.val() || {};
@@ -1062,7 +1073,8 @@ export function PendingRecords() {
             : list.filter(
                 (p) =>
                   p.createdBy === user.uid ||
-                  (p.sharedWith || []).includes(user.uid),
+                  (p.sharedWith || []).includes(user.uid) ||
+                  (!!p.linkId && !!linkId && p.linkId === linkId),
               ),
         );
       });
@@ -1077,7 +1089,13 @@ export function PendingRecords() {
           }),
         );
         setPendingRecords(
-          isAdminUser ? list : list.filter((r) => r.createdBy === user.uid),
+          isAdminUser
+            ? list
+            : list.filter(
+                (r) =>
+                  r.createdBy === user.uid ||
+                  (!!r.linkId && !!linkId && r.linkId === linkId),
+              ),
         );
         setLoading(false);
       });

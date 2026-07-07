@@ -28,6 +28,8 @@ import {
   Pill,
   Users,
   ChevronDown,
+  Link2,
+  AlertTriangle,
 } from "lucide-react";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import {
@@ -80,6 +82,7 @@ export type MedicalRecords = {
   isTBPositive: boolean;
   hasClinician: boolean;
   diet: boolean;
+  linkId?: string | null;
 };
 
 export type Patient = {
@@ -102,6 +105,7 @@ export type Patient = {
   isTBPositive?: boolean;
   hasClinician?: boolean;
   diet?: boolean;
+  linkId?: string | null;
   familyHistory?: {
     relation: string;
     age: string;
@@ -130,7 +134,6 @@ function isValidDate(date: Date | undefined) {
   return !isNaN(date.getTime());
 }
 
-// ── Reusable collapsible section header ──────────────────────────────────────
 function SectionTrigger({
   icon,
   title,
@@ -170,7 +173,7 @@ function SectionTrigger({
     </CollapsibleTrigger>
   );
 }
-// ─── Main component ───────────────────────────────────────────────────────────
+
 export function AddConsultationRecords({
   patient: patientProp,
 }: AddConsultationRecordsProps) {
@@ -199,7 +202,6 @@ export function AddConsultationRecords({
     );
   }
 
-  // ── Collapsible open states ──
   const [openPatientInfo, setOpenPatientInfo] = useState(false);
   const [openAddress, setOpenAddress] = useState(false);
   const [openHealthHistory, setOpenHealthHistory] = useState(false);
@@ -232,8 +234,11 @@ export function AddConsultationRecords({
   const [patientDiagnosis, setDiagnosis] = useState([
     { diagnosis: "", severity: "", notes: "" },
   ]);
-  const [linkedUsers, setLinkedUsers] = React.useState<any[]>([]);
-  const [selectedLinkedUser, setSelectedLinkedUser] = React.useState("");
+
+  const [currentUserLinkId, setCurrentUserLinkId] = React.useState<
+    string | null
+  >(null);
+  const [linkedUser, setLinkedUser] = React.useState<any | null>(null);
   const [includePrescription, setIncludePrescription] = useState(false);
 
   const [familyHistory, setFamilyHistory] = useState(
@@ -268,22 +273,24 @@ export function AddConsultationRecords({
     const unsubscribe = onValue(userRef, async (snapshot) => {
       const userData = snapshot.val();
       if (!userData) return;
-      let linkedUserIds: string[] = [];
-      if (user.type?.toLowerCase() === "secretary") {
-        linkedUserIds = userData.doctors || [];
-      } else if (user.type?.toLowerCase() === "doctor") {
-        linkedUserIds = userData.secretaries || [];
+      const linkId: string | null = userData.linkId ?? null;
+      setCurrentUserLinkId(linkId);
+
+      if (!linkId) {
+        setLinkedUser(null);
+        return;
       }
-      const linkedUsersPromises = linkedUserIds.map(async (userId: string) => {
-        const linkedUserRef = ref(db, `users/${userId}`);
-        const linkedUserSnap = await get(linkedUserRef);
-        if (linkedUserSnap.exists()) {
-          return { id: userId, ...linkedUserSnap.val() };
-        }
-        return null;
-      });
-      const linkedUsersData = await Promise.all(linkedUsersPromises);
-      setLinkedUsers(linkedUsersData.filter(Boolean));
+
+      const allUsersSnap = await get(ref(db, "users"));
+      const allUsers = allUsersSnap.val() || {};
+      const partnerEntry = Object.entries(allUsers).find(
+        ([id, u]: [string, any]) => id !== user.uid && u.linkId === linkId,
+      );
+      setLinkedUser(
+        partnerEntry
+          ? { id: partnerEntry[0], ...(partnerEntry[1] as any) }
+          : null,
+      );
     });
     return () => unsubscribe();
   }, [user]);
@@ -364,6 +371,11 @@ export function AddConsultationRecords({
       toast.error("Patient data is missing");
       return;
     }
+
+    if (userIsSecretary && !currentUserLinkId) {
+      toast.error("You must be linked to a doctor before adding records.");
+      return;
+    }
     setIsLoading(true);
     try {
       const logsRef = ref(db, "logs/");
@@ -403,8 +415,9 @@ export function AddConsultationRecords({
         hasClinician: fields.patientHasClinician,
         diet: fields.patientDiet,
         familyHistory,
+
+        linkId: currentUserLinkId,
         addedBy: user?.email,
-        approvedBy: user?.firstName,
         createdBy: user?.uid,
         createdAt: Date.now(),
       };
@@ -415,7 +428,11 @@ export function AddConsultationRecords({
         await set(newPending, {
           ...recordData,
           patientId: patient.id,
+          linkId: currentUserLinkId,
           status: "pending",
+          // approvedBy intentionally omitted here — this record hasn't been
+          // approved yet. pending-records.tsx stamps approvedBy/approvedAt
+          // when a doctor/admin actually approves it.
         });
         await set(newLog, {
           medicalRecordLog: `Consultation record added for approval by ${user?.firstName} ${user?.lastName} for patient ${patient.firstName} ${patient.lastName}`,
@@ -423,7 +440,13 @@ export function AddConsultationRecords({
         });
         toast.success("Consultation record submitted for approval!");
       } else {
-        await set(newRecord, recordData);
+        // Doctor/admin adding directly — this record is effectively
+        // self-approved, so stamp approvedBy immediately.
+        await set(newRecord, {
+          ...recordData,
+          approvedBy: `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim(),
+          approvedAt: new Date().toISOString(),
+        });
 
         if (includePrescription) {
           const prescriptionRef = ref(
@@ -440,10 +463,13 @@ export function AddConsultationRecords({
             examination: prescriptionFields.examination,
             recommendation: prescriptionFields.recommendation,
             drugs,
+            linkId: currentUserLinkId,
             addedBy: `${user?.firstName} ${user?.lastName}`,
             field: user?.field,
             doctorId: user?.medicalId,
             createdBy: user?.uid,
+            approvedBy:
+              `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim(),
             updatedAt: new Date().toLocaleString(),
           });
           const prescriptionLog = push(logsRef);
@@ -483,7 +509,6 @@ export function AddConsultationRecords({
       className="space-y-6 md:space-y-8"
     >
       <Card className="flex-1 p-6 md:p-8">
-        {/* ── HEADER ── */}
         <div className="text-center mb-8">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight">
             Medical Consultation Record Form
@@ -498,7 +523,6 @@ export function AddConsultationRecords({
         <div className="px-0 md:px-4 lg:px-8">
           <Card className="p-6 md:p-8 rounded-2xl border border-gray-100 shadow-sm">
             <div className="max-w-5xl mx-auto space-y-4">
-              {/* ── 1. PATIENT INFORMATION (collapsible) ── */}
               <Collapsible
                 open={openPatientInfo}
                 onOpenChange={setOpenPatientInfo}
@@ -598,7 +622,6 @@ export function AddConsultationRecords({
                     </Field>
                   </div>
 
-                  {/* Row 2: Age + Gender + Contact */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Field>
                       <Input
@@ -656,7 +679,6 @@ export function AddConsultationRecords({
                 </CollapsibleContent>
               </Collapsible>
 
-              {/* ── 2. ADDRESS (collapsible) ── */}
               <Collapsible open={openAddress} onOpenChange={setOpenAddress}>
                 <SectionTrigger
                   icon={<MapPin className="w-4 h-4 !text-[#00a896]" />}
@@ -713,7 +735,6 @@ export function AddConsultationRecords({
                 </CollapsibleContent>
               </Collapsible>
 
-              {/* ── 3. HEALTH HISTORY (collapsible) ── */}
               <Collapsible
                 open={openHealthHistory}
                 onOpenChange={setOpenHealthHistory}
@@ -775,7 +796,6 @@ export function AddConsultationRecords({
                 </CollapsibleContent>
               </Collapsible>
 
-              {/* ── 4. FAMILY HISTORY (collapsible) ── */}
               <Collapsible
                 open={openFamilyHistory}
                 onOpenChange={setOpenFamilyHistory}
@@ -982,10 +1002,8 @@ export function AddConsultationRecords({
                 </CollapsibleContent>
               </Collapsible>
 
-              {/* ── DIVIDER ── */}
               <div className="border-t border-gray-100 pt-2" />
 
-              {/* ── 5. VITAL STATISTICS ── */}
               <div className="space-y-4">
                 <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
                   <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
@@ -1120,7 +1138,6 @@ export function AddConsultationRecords({
                 </div>
               </div>
 
-              {/* ── 6. SYMPTOMS ── */}
               <div className="space-y-4">
                 <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
                   <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
@@ -1142,7 +1159,6 @@ export function AddConsultationRecords({
                 </Field>
               </div>
 
-              {/* ── 7. ILLNESS / DIAGNOSIS ── */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
@@ -1221,7 +1237,6 @@ export function AddConsultationRecords({
                 </div>
               </div>
 
-              {/* ── 8. PRESCRIPTION TOGGLE ── */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50">
                   <div className="flex items-center gap-3">
@@ -1430,38 +1445,39 @@ export function AddConsultationRecords({
         </div>
       </Card>
 
-      {!userIsAdmin && linkedUsers.length > 0 && (
+      {!userIsAdmin && linkedUser && (
         <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
-          <Label className="text-base font-semibold text-blue-800 mb-3 block">
-            {userIsSecretary && "Share with Doctor"}
-            {userIsDoctor && "Share with Secretary"}
+          <Label className="text-base font-semibold text-blue-800 mb-1 flex items-center gap-2">
+            <Link2 className="w-4 h-4" />
+            {userIsSecretary ? "Linked Doctor" : "Linked Secretary"}
           </Label>
-          <Select
-            value={selectedLinkedUser}
-            onValueChange={setSelectedLinkedUser}
-          >
-            <SelectTrigger className="!bg-white !text-base md:!text-lg h-12 md:h-14 border-blue-300">
-              <SelectValue
-                placeholder={`Select a ${userIsSecretary ? "doctor" : "secretary"} to share this record with`}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {linkedUsers.map((linkedUser) => (
-                <SelectItem key={linkedUser.id} value={linkedUser.id}>
-                  {linkedUser.firstName} {linkedUser.lastName}
-                  {linkedUser.field && ` - ${linkedUser.field}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <p className="text-blue-900 font-medium">
+            {linkedUser.firstName} {linkedUser.lastName}
+            {linkedUser.field && ` · ${linkedUser.field}`}
+          </p>
+          <p className="text-xs text-blue-600 mt-1">
+            {userIsSecretary
+              ? "This record will be submitted for approval to your linked doctor."
+              : "This record will automatically be shared with your linked secretary."}
+          </p>
         </div>
       )}
 
-      {/* ── SUBMIT ── */}
+      {!userIsAdmin && !linkedUser && userIsSecretary && (
+        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800">
+            You are not linked to a doctor yet. Link with a doctor before adding
+            consultation records — a doctor and secretary can only be linked to
+            one account at a time.
+          </p>
+        </div>
+      )}
+
       <div className="flex justify-center mt-8 md:mt-10 pb-6">
         <Button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || (userIsSecretary && !currentUserLinkId)}
           className="!bg-[#00a896] hover:!bg-[#028090] !text-white !px-12 !py-6 !text-lg font-semibold rounded-xl transition-all disabled:opacity-50 shadow-md"
         >
           {isLoading ? "Saving..." : "Save Consultation Record"}

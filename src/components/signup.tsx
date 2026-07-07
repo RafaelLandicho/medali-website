@@ -81,6 +81,7 @@ export function SignUp() {
         field: isDoctor ? fields.department : null,
         requests: [],
         ...(isDoctor ? { secretaries: [] } : { doctors: [] }),
+        linkId: "",
       });
       toast.success("Account created successfully!");
       navigate("/records");

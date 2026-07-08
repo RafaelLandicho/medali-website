@@ -176,15 +176,12 @@ export function ViewLogs() {
   const columns: ColumnDef<Log>[] = [
     {
       accessorKey: "logTime",
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="flex items-center gap-2 !bg-[#00a896] !text-white hover:bg-transparent"
-        >
+      enableSorting: false,
+      header: () => (
+        <div className="flex items-center gap-2 px-4 py-2 rounded-md !bg-[#00a896] !text-white w-fit">
           <IconClock className="w-4 h-4" />
           Time
-        </Button>
+        </div>
       ),
       cell: ({ row }) => {
         const date = new Date(row.original.logTime);
@@ -252,14 +249,13 @@ export function ViewLogs() {
   const table = useReactTable({
     data: filteredData,
     columns,
-    onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
-    state: { sorting, columnFilters, columnVisibility },
+    state: { columnFilters, columnVisibility },
     initialState: {
       pagination: {
         pageSize: 10,

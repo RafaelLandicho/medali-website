@@ -394,6 +394,13 @@ export function ViewFullPatient({ patient }: FullDetails) {
   useEffect(() => {
     if (!patient.id || !patient.recordId) return;
 
+    const newLog = push(logsRef);
+
+    set(newLog, {
+      medicalRecordLog: `Consultation record of patient ${patient.firstName} ${patient.lastName} has been viewed by   ${user?.firstName} ${user?.lastName} `,
+      logTime: new Date().toLocaleString(),
+    });
+
     const prescriptionRef = ref(
       db,
       `patients/${patient.id}/records/${patient.recordId}/prescription`,

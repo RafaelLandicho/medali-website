@@ -448,10 +448,13 @@ export function ViewUsers() {
           </p>
         </div>
         {isAdmin && (
-          <div className="bg-red-50 px-4 py-2 rounded-lg">
-            <p className="text-red-600 text-sm font-semibold">
-              Admin Mode: You can delete users
-            </p>
+          <div>
+            <div className="bg-red-50 px-4 py-2 rounded-lg">
+              <p className="text-red-600 text-sm font-semibold">
+                Admin Mode: You can delete users
+              </p>
+            </div>
+            <Button className="!bg-emerald-500 !text-white">Add users</Button>
           </div>
         )}
       </div>

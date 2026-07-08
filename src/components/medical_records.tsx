@@ -442,22 +442,27 @@ const DeletePatient = ({ patient }: { patient: Patient }) => {
 
 const ClickName = ({ patient }: { patient: Patient }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const logsRef = ref(db, "logs/");
+  const newLog = push(logsRef);
 
   return (
     <p
       className="font-medium text-gray-800 text-sm cursor-pointer hover:text-[#00a896]"
-      onClick={() =>
+      onClick={async () => {
+        await set(newLog, {
+          medicalRecordLog: `Patient records accessed: ${patient.firstName} ${patient.lastName} by ${user?.firstName} ${user?.lastName}`,
+          logTime: new Date().toLocaleString(),
+        });
         navigate(`/view-consultation-record/${patient.id}`, {
           state: patient,
-        })
-      }
+        });
+      }}
     >
       {patient.firstName} {patient.lastName}
     </p>
   );
 };
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export function MedicalRecords() {
   const { user } = useAuth();
@@ -469,25 +474,45 @@ export function MedicalRecords() {
 
   React.useEffect(() => {
     if (!user) return;
+
     const usersRef = ref(db, "users");
     const patientsRef = ref(db, "patients");
 
-    const unsubscribe = onValue(usersRef, (usersSnap) => {
+    const unsubscribeUsers = onValue(usersRef, (usersSnap) => {
       const usersData = usersSnap.val() || {};
+
+      // Current logged in user
       const currentUser = usersData[user.uid];
+
       if (!currentUser) {
         setLoading(false);
         return;
       }
-      const currentUserLinkId: string | null = currentUser.linkId ?? null;
+
+      // Build a list of users that belong to the same link group
+      const linkedUsers: string[] = [];
+
+      // If the user has a linkId, find everyone with the same linkId
+      if (currentUser.linkId) {
+        for (const uid in usersData) {
+          const otherUser = usersData[uid];
+          if (otherUser.linkId === currentUser.linkId) {
+            linkedUsers.push(uid); // ✅ use the object key, not otherUser.uid
+          }
+        }
+      } else {
+        linkedUsers.push(user.uid);
+      }
 
       const unsubscribePatients = onValue(patientsRef, (snapshot) => {
         const raw = snapshot.val();
+
         const patients: Patient[] = raw
           ? Object.entries(raw)
               .map(([id, value]: [string, any]) => {
                 const diagnosisData =
                   value.diagnosis || value.patientDiagnosis || [];
+
                 return {
                   id,
                   ...value,
@@ -498,15 +523,14 @@ export function MedicalRecords() {
                   updatedAt: value.updatedAt ?? value.createdAt ?? null,
                 };
               })
-              .filter((record) => {
-                if (currentUser.type === "admin") return false;
+              .filter((patient) => {
+                // Admin sees everything
+                if (currentUser.type?.toLowerCase() === "admin") {
+                  return false;
+                }
 
-                return (
-                  record.createdBy === user.uid ||
-                  (!!record.linkId &&
-                    !!currentUserLinkId &&
-                    record.linkId === currentUserLinkId)
-                );
+                // Show patients created by anyone in the linked group
+                return linkedUsers.includes(patient.createdBy);
               })
               .sort(
                 (a, b) =>
@@ -514,6 +538,9 @@ export function MedicalRecords() {
                   (a.updatedAt ?? a.createdAt ?? 0),
               )
           : [];
+        console.log(patients);
+        console.log(linkedUsers);
+
         setData(patients);
         setLoading(false);
       });
@@ -521,7 +548,7 @@ export function MedicalRecords() {
       return () => unsubscribePatients();
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeUsers();
   }, [user]);
 
   const [sorting, setSorting] = React.useState<SortingState>([

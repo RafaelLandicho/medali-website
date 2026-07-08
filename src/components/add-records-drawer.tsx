@@ -65,11 +65,7 @@ export function AddRecordsDrawer({
   }
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerTrigger asChild>
-        <Button variant="outline" className="!bg-green-300 !text-black">
-          Add Records
-        </Button>
-      </DrawerTrigger>
+      <DrawerTrigger asChild></DrawerTrigger>
       <DrawerContent className="h-[95vh] max-h-[95vh] flex flex-col">
         <DrawerHeader className="text-left flex-shrink-0 border-b border-gray-100 pb-4">
           <DrawerTitle className="text-xl">Add Medical Record</DrawerTitle>

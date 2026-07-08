@@ -194,7 +194,7 @@ const StatsBar = ({
 
 const MobilePatientCard = ({ patient }: { patient: Patient }) => {
   const { user } = useAuth();
-  const [openUser, setOpenUser] = React.useState(false);
+  const navigate = useNavigate();
 
   const [openEdit, setOpenEdit] = React.useState(false);
   const [openPrescription, setOpenPrescription] = React.useState(false);
@@ -203,6 +203,23 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
   const userIsDoctor =
     user?.type?.toLowerCase() === "doctor" ||
     user?.type?.toLowerCase() === "admin";
+
+  const handleViewPatient = async () => {
+    try {
+      const logsRef = ref(db, "logs/");
+      const newLog = push(logsRef);
+      await set(newLog, {
+        medicalRecordLog: `Patient records accessed: ${patient.firstName} ${patient.lastName} by ${user?.firstName} ${user?.lastName}`,
+        logTime: new Date().toLocaleString(),
+      });
+    } catch (error) {
+      console.error("Error logging patient access:", error);
+    } finally {
+      navigate(`/view-consultation-record/${patient.id}`, {
+        state: patient,
+      });
+    }
+  };
 
   const handleDelete = async () => {
     try {
@@ -242,28 +259,13 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
         {/* Action buttons */}
         <div className="flex items-center gap-1 shrink-0">
           <button
-            onClick={() => setOpenUser(true)}
+            onClick={handleViewPatient}
             title="View patient"
             className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 !bg-white hover:bg-gray-50 transition-colors"
           >
             <UserIcon className="w-4 h-4 text-[#00a896]" />
           </button>
-          <button
-            onClick={() => setOpenEdit(true)}
-            title="Edit patient"
-            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 !bg-white hover:bg-gray-50 transition-colors"
-          >
-            <PenIcon className="w-4 h-4 text-[#00a896]" />
-          </button>
-          {userIsDoctor && (
-            <button
-              onClick={() => setOpenPrescription(true)}
-              title="Prescriptions"
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 !bg-white hover:bg-gray-50 transition-colors"
-            >
-              <PillIcon className="w-4 h-4 text-[#00a896]" />
-            </button>
-          )}
+
           <button
             onClick={() => setOpenDelete(true)}
             title="Delete patient"
@@ -325,6 +327,15 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
         onOpenChange={setOpenEdit}
         patient={patient}
       />
+
+      {userIsDoctor && (
+        <PrescriptionDrawer
+          open={openPrescription}
+          onOpenChange={setOpenPrescription}
+          patient={patient as any}
+          readOnly={false}
+        />
+      )}
 
       <Dialog open={openDelete} onOpenChange={setOpenDelete}>
         <DialogContent>
@@ -835,7 +846,7 @@ export function MedicalRecords() {
   );
 
   return (
-    <div className="flex flex-col gap-4 p-4 sm:p-5 bg-gray-50 min-h-screen">
+    <div className="flex flex-col gap-4 p-4 sm:p-5 bg-gray-50 min-h-screen overflow-x-hidden">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight">
@@ -877,7 +888,7 @@ export function MedicalRecords() {
             </button>
           </div>
 
-          <div className="rounded-lg border border-gray-200 overflow-hidden shadow-sm bg-white">
+          <div className="rounded-lg border border-gray-200 overflow-hidden shadow-sm bg-white min-w-0">
             <div className="overflow-x-auto">
               <Table className="min-w-[1000px] text-sm">
                 <TableHeader>

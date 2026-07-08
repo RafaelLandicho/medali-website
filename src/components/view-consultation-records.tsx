@@ -124,8 +124,6 @@ export type MedicalRecord = {
   createdAt?: number;
   updatedAt?: number;
   approvedBy?: string;
-  // The linkId of the doctor/secretary pair that owns this record. Anyone
-  // whose current linkId matches this value can see the record.
   linkId?: string | null;
   prescription?: Prescription;
 };

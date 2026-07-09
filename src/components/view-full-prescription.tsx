@@ -271,33 +271,29 @@ export function ViewFullPrescription({
   return (
     <div className="flex flex-col gap-4 md:gap-6">
       {/* DOWNLOAD BUTTON - Sticky on mobile */}
-      <div
-        className={`${
-          isMobile
-            ? "sticky top-0 z-10 bg-[#f0faf9] py-2 px-2 rounded-xl shadow-sm"
-            : ""
-        }`}
-      >
-        <div className="flex justify-center">
-          <Button
-            onClick={handleDownloadPDF}
-            disabled={isGenerating}
-            className="!bg-[#ff6b6b] hover:!bg-[#e05555] !text-white font-semibold px-6 md:px-8 w-full md:w-auto shadow-md transition-all"
-          >
-            {isGenerating ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                Generating PDF…
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4 mr-2" />
-                Download Prescription
-              </>
-            )}
-          </Button>
+      {!isMobile && (
+        <div>
+          <div className="flex justify-center">
+            <Button
+              onClick={handleDownloadPDF}
+              disabled={isGenerating}
+              className="!bg-[#ff6b6b] hover:!bg-[#e05555] !text-white font-semibold px-6 md:px-8 w-full md:w-auto shadow-md transition-all"
+            >
+              {isGenerating ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                  Generating PDF…
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Prescription
+                </>
+              )}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* PRESCRIPTION PAPER — visible on-screen version */}
       <div className="overflow-auto max-h-[85vh] bg-[#e6f7f5] p-2 md:p-4 rounded-xl">

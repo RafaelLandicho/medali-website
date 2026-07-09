@@ -3,424 +3,463 @@
 /**
  * MockDataSeeder.jsx
  *
- * Drop this file anywhere in your project (e.g. src/components/MockDataSeeder.jsx).
- * Import and render it on any route (or wrap it behind an admin-only check).
+ * Drop anywhere in your project and render it on an admin-only route.
  *
  * Usage:
  *   import { MockDataSeeder } from "@/components/MockDataSeeder";
- *   // then in JSX:
  *   <MockDataSeeder />
  *
- * It reads from your existing firebaseConfig and pushes 100 patients
- * (each with 1-3 consultation records, some with prescriptions) to:
- *   - /patients/{id}
- *   - /patients/{id}/records/{recordId}
- *   - /patients/{id}/records/{recordId}/prescription  (optional)
- *   - /logs/{logId}
+ * Pushes 100 patients (each with 1–3 records, ~60% with prescriptions) to:
+ *   /patients/{id}
+ *   /patients/{id}/records/{recordId}
+ *   /patients/{id}/records/{recordId}/prescription  (optional)
+ *   /logs/{logId}
+ *
+ * All data is owned by Dr. Lance Riddick (uid: 5JKyAa2q7ifqpTXv41jCSCAz8M22).
  */
 
 import * as React from "react";
 import { db } from "@/firebaseConfig";
 import { ref, push, set, get } from "firebase/database";
 
+// ─── The doctor who owns all seeded data ─────────────────────────────────────
+
+const DOCTOR = {
+  uid: "5JKyAa2q7ifqpTXv41jCSCAz8M22",
+  firstName: "Lance",
+  lastName: "Riddick",
+  displayName: "Dr. Lance Riddick",
+  username: "LanceRiddick",
+  field: "Internal Medicine",
+  medicalId: "754239655",
+  email: "lr@gmail.com",
+  linkId: "",
+};
+
 // ─── Seed data pools ──────────────────────────────────────────────────────────
 
 const MALE_FIRST = [
-  "Juan",
-  "Carlo",
-  "Miguel",
-  "Jose",
-  "Ramon",
-  "Eduardo",
-  "Roberto",
-  "Antonio",
-  "Fernando",
-  "Ricardo",
-  "Manuel",
-  "Francisco",
-  "Andres",
-  "Rodrigo",
-  "Ernesto",
-  "Alejandro",
-  "Danilo",
-  "Renato",
-  "Alfredo",
+  "Arturo",
   "Bernardo",
-  "Cesar",
-  "Diego",
-  "Emilio",
-  "Felix",
-  "Gabriel",
-  "Hector",
-  "Ignacio",
-  "Joselito",
-  "Kevin",
-  "Leonardo",
-  "Rafael",
-  "Augusto",
-  "Benjamin",
-  "Carlos",
-  "Domingo",
-  "Esteban",
-  "Felipe",
-  "Gerardo",
-  "Hugo",
-  "Ismael",
-  "Joaquin",
-  "Lorenzo",
-  "Martin",
-  "Nicolas",
-  "Oscar",
-  "Pedro",
-  "Quintin",
-  "Rogelio",
-  "Salvador",
-  "Tomas",
-];
-const FEMALE_FIRST = [
-  "Maria",
-  "Ana",
-  "Rosa",
-  "Luz",
-  "Carmen",
-  "Gloria",
-  "Elena",
-  "Isabel",
-  "Teresa",
-  "Cecilia",
-  "Lourdes",
-  "Maricel",
-  "Rowena",
-  "Cristina",
-  "Aileen",
-  "Kathleen",
-  "Jennifer",
-  "Marites",
-  "Rosario",
-  "Florinda",
-  "Natividad",
-  "Paz",
-  "Salvacion",
-  "Dalisay",
-  "Hazel",
-  "Jasmine",
-  "Kristine",
-  "Lovely",
-  "Michelle",
-  "Noreen",
-  "Olivia",
-  "Patricia",
-  "Queenie",
-  "Ruth",
-  "Soledad",
-  "Trinidad",
-  "Ursula",
-  "Valentina",
-  "Wendy",
-  "Xenia",
-  "Yolanda",
-  "Zenaida",
-  "Adelina",
-  "Belinda",
-  "Corazon",
-  "Dolores",
-  "Esperanza",
-  "Filomena",
-  "Graciela",
-  "Herminia",
-];
-const LAST_NAMES = [
-  "Santos",
-  "Reyes",
-  "Cruz",
-  "Garcia",
-  "Mendoza",
-  "Torres",
-  "Flores",
-  "Bautista",
-  "Aquino",
-  "Ramos",
-  "Villanueva",
-  "Castillo",
-  "Gonzales",
-  "Manalo",
-  "De Leon",
-  "Dela Cruz",
-  "Pascual",
-  "Magno",
-  "Ocampo",
-  "Rivera",
-  "Soriano",
-  "Hernandez",
-  "Buenaventura",
-  "Samson",
-  "Guevara",
-  "Lim",
-  "Tan",
-  "Sy",
-  "Uy",
-  "Palma",
-  "Aguilar",
-  "Balagtas",
-  "Cabrera",
-  "Dizon",
-  "Espiritu",
-  "Fernandez",
-  "Gutierrez",
-  "Herrera",
+  "Clemente",
+  "Dominic",
+  "Efren",
+  "Florencio",
+  "Gregorio",
+  "Herminio",
   "Ignacio",
   "Jacinto",
-  "Kalaw",
-  "Lazaro",
-  "Mercado",
-  "Navarro",
-  "Ortiz",
-  "Pineda",
-  "Quisumbing",
-  "Roxas",
-  "Salazar",
-  "Tolentino",
+  "Kristoffer",
+  "Leandro",
+  "Marcelo",
+  "Nestor",
+  "Oswaldo",
+  "Patricio",
+  "Quirino",
+  "Ruperto",
+  "Silverio",
+  "Teodoro",
+  "Ulysses",
+  "Valeriano",
+  "Wilfredo",
+  "Ximeno",
+  "Ysmael",
+  "Zacarias",
+  "Amado",
+  "Bienvenido",
+  "Conrado",
+  "Diosdado",
+];
+const FEMALE_FIRST = [
+  "Adoracion",
+  "Benita",
+  "Caridad",
+  "Divina",
+  "Eulalia",
+  "Fortunata",
+  "Gertrudes",
+  "Herminia",
+  "Imelda",
+  "Jovita",
+  "Katrina",
+  "Leonora",
+  "Mildred",
+  "Nilda",
+  "Ofelia",
+  "Purificacion",
+  "Quirina",
+  "Resurreccion",
+  "Saturnina",
+  "Teresita",
+  "Urduja",
+  "Visitacion",
+  "Wilma",
+  "Xandra",
+  "Ysabel",
+  "Zosima",
+  "Almira",
+  "Belinda",
+  "Celestina",
+  "Dolores",
+];
+const LAST_NAMES = [
+  "Abaya",
+  "Baluyot",
+  "Cariño",
+  "Delos Reyes",
+  "Espiritu",
+  "Fajardo",
+  "Galvez",
+  "Halili",
+  "Ilagan",
+  "Javier",
+  "Katindig",
+  "Lacuesta",
+  "Mallari",
+  "Natividad",
+  "Obillos",
+  "Pagatpatan",
+  "Quiambao",
+  "Regalado",
+  "Silvestre",
+  "Tiongco",
+  "Umali",
+  "Vargas",
+  "Wenceslao",
+  "Xavier",
+  "Yumol",
+  "Zablan",
+  "Almazan",
+  "Buenaobra",
+  "Cayabyab",
+  "Dimaculangan",
 ];
 const CITIES = [
-  "Caloocan",
-  "Quezon City",
-  "Manila",
-  "Pasig",
-  "Taguig",
-  "Makati",
-  "Las Piñas",
-  "Parañaque",
-  "Muntinlupa",
-  "Marikina",
-  "Valenzuela",
-  "Antipolo",
-  "Bacoor",
-  "Imus",
-  "Dasmariñas",
-  "General Trias",
-  "Biñan",
-  "Santa Rosa",
-  "Cabuyao",
-  "Calamba",
-  "San Pedro",
-  "Laguna",
-  "Batangas City",
-  "Lipa",
-  "Tanauan",
-  "Sto. Tomas",
-  "Malvar",
-  "San Pablo",
-  "Lucena",
-  "Tayabas",
-  "Sariaya",
-  "Candelaria",
+  "Baguio",
+  "Dagupan",
+  "San Fernando",
+  "Angeles",
+  "Olongapo",
+  "Cabanatuan",
+  "Malolos",
+  "Meycauayan",
+  "San Jose del Monte",
+  "Naga",
+  "Legazpi",
+  "Sorsogon",
+  "Iriga",
+  "Tabaco",
+  "Masbate",
+  "Roxas City",
+  "Iloilo City",
+  "Bacolod",
+  "Dumaguete",
+  "Tacloban",
+  "Ormoc",
+  "Calbayog",
+  "Butuan",
+  "Cagayan de Oro",
+  "Iligan",
+  "Zamboanga City",
+  "General Santos",
+  "Davao City",
+  "Koronadal",
+  "Cotabato",
 ];
 const PROVINCES = [
-  "Metro Manila",
-  "Metro Manila",
-  "Metro Manila",
-  "Metro Manila",
-  "Metro Manila",
-  "Cavite",
-  "Cavite",
-  "Cavite",
-  "Cavite",
-  "Laguna",
-  "Laguna",
-  "Laguna",
-  "Laguna",
-  "Laguna",
-  "Rizal",
-  "Rizal",
-  "Rizal",
-  "Bulacan",
-  "Bulacan",
+  "Benguet",
+  "Pangasinan",
   "Pampanga",
   "Pampanga",
-  "Batangas",
-  "Batangas",
-  "Batangas",
-  "Batangas",
-  "Quezon",
-  "Quezon",
-  "Quezon",
-  "Quezon",
+  "Zambales",
+  "Nueva Ecija",
+  "Bulacan",
+  "Bulacan",
+  "Bulacan",
+  "Camarines Sur",
+  "Albay",
+  "Sorsogon",
+  "Camarines Sur",
+  "Albay",
+  "Masbate",
+  "Capiz",
+  "Iloilo",
+  "Negros Occidental",
+  "Negros Oriental",
+  "Leyte",
+  "Leyte",
+  "Samar",
+  "Agusan del Norte",
+  "Misamis Oriental",
+  "Lanao del Norte",
+  "Zamboanga del Sur",
+  "South Cotabato",
+  "Davao del Sur",
+  "South Cotabato",
+  "Maguindanao",
 ];
 const STREETS = [
-  "123 Rizal Ave",
-  "456 Mabini St",
-  "789 Bonifacio Blvd",
-  "321 Aguinaldo Rd",
-  "654 Quezon St",
-  "987 Marcos Hwy",
-  "147 Del Pilar St",
-  "258 Luna Ave",
-  "369 Burgos St",
-  "741 Jacinto Ave",
-  "852 Osmena Blvd",
-  "963 Roxas Blvd",
-  "111 Evangelista St",
-  "222 Kalayaan Ave",
-  "333 Tandang Sora Ave",
-  "444 Commonwealth Ave",
-  "555 Mindanao Ave",
-  "666 Visayas Ave",
-  "777 Aurora Blvd",
-  "888 Katipunan Ave",
-  "999 C5 Road",
-  "101 Gil Puyat Ave",
-  "202 Buendia Ave",
-  "303 Ayala Ave",
-  "404 BGC Ave",
-  "505 Chino Roces Ave",
-  "606 P. Ocampo St",
-  "707 Vito Cruz St",
-  "808 Taft Ave",
-  "909 Pedro Gil St",
+  "12 Magsaysay Ave",
+  "34 Session Rd",
+  "56 Abanao St",
+  "78 Harrison Rd",
+  "90 Kennon Rd",
+  "11 Gov. Pack Rd",
+  "22 Legarda Rd",
+  "33 Naguilian Rd",
+  "44 Marcos Hwy",
+  "55 Military Cut-off",
+  "66 Leonard Wood Rd",
+  "77 Bokawkan Rd",
+  "88 Assumption Rd",
+  "99 Outlook Drive",
+  "100 South Drive",
+  "200 Upper Session",
+  "300 Mines View Rd",
+  "400 Dominican Hill Rd",
+  "500 Camp Allen Rd",
+  "600 Loakan Rd",
 ];
 
+// Internal Medicine diagnoses + general
 const DIAGNOSES = [
-  { d: "Hypertension", s: "moderate" },
-  { d: "Diabetes Mellitus Type 2", s: "moderate" },
-  { d: "Upper Respiratory Tract Infection", s: "mild" },
-  { d: "Community-Acquired Pneumonia", s: "severe" },
-  { d: "Gastroenteritis", s: "mild" },
-  { d: "Urinary Tract Infection", s: "mild" },
-  { d: "Dengue Fever", s: "severe" },
-  { d: "Typhoid Fever", s: "moderate" },
-  { d: "Bronchial Asthma", s: "moderate" },
-  { d: "Pulmonary Tuberculosis", s: "critical" },
-  { d: "Acute Pharyngitis", s: "mild" },
-  { d: "Hypertensive Heart Disease", s: "severe" },
-  { d: "Chronic Kidney Disease Stage 3", s: "severe" },
-  { d: "Peptic Ulcer Disease", s: "moderate" },
-  { d: "Iron Deficiency Anemia", s: "mild" },
-  { d: "Osteoarthritis", s: "mild" },
-  { d: "Hyperthyroidism", s: "moderate" },
-  { d: "Migraine", s: "mild" },
-  { d: "Acute Appendicitis", s: "severe" },
+  { d: "Hypertensive Urgency", s: "severe" },
+  { d: "Hypertensive Emergency", s: "critical" },
+  { d: "Type 2 Diabetes Mellitus — Uncontrolled", s: "severe" },
+  { d: "Type 2 Diabetes Mellitus — Controlled", s: "moderate" },
+  { d: "Diabetic Ketoacidosis", s: "critical" },
+  { d: "Chronic Kidney Disease Stage 3", s: "moderate" },
+  { d: "Chronic Kidney Disease Stage 4", s: "severe" },
+  { d: "Congestive Heart Failure", s: "severe" },
+  { d: "Coronary Artery Disease", s: "severe" },
+  { d: "Atrial Fibrillation", s: "moderate" },
+  { d: "Deep Vein Thrombosis", s: "moderate" },
+  { d: "Pulmonary Embolism", s: "critical" },
+  { d: "Community-Acquired Pneumonia", s: "moderate" },
+  { d: "Pulmonary Tuberculosis", s: "severe" },
   { d: "Chronic Obstructive Pulmonary Disease", s: "moderate" },
-  { d: "Depression", s: "moderate" },
-  { d: "Anxiety Disorder", s: "mild" },
-  { d: "Insomnia", s: "mild" },
-  { d: "Bipolar Disorder", s: "severe" },
-  { d: "Schizophrenia", s: "critical" },
-  { d: "Post-Traumatic Stress Disorder", s: "moderate" },
-  { d: "Obsessive-Compulsive Disorder", s: "moderate" },
-  { d: "Panic Disorder", s: "moderate" },
-  { d: "Attention Deficit Hyperactivity Disorder", s: "mild" },
-  { d: "Autism Spectrum Disorder", s: "moderate" },
-  // Additional surgical/General Surgery related diagnoses
-  { d: "Cholelithiasis", s: "moderate" },
-  { d: "Inguinal Hernia", s: "moderate" },
-  { d: "Appendicitis", s: "severe" },
-  { d: "Gastrointestinal Bleeding", s: "critical" },
-  { d: "Soft Tissue Infection", s: "mild" },
+  { d: "Bronchial Asthma — Acute Exacerbation", s: "moderate" },
+  { d: "Peptic Ulcer Disease", s: "moderate" },
+  { d: "Liver Cirrhosis — Child-Pugh B", s: "severe" },
+  { d: "Hepatitis B", s: "moderate" },
+  { d: "Hyperlipidemia", s: "mild" },
+  { d: "Gout — Acute Attack", s: "moderate" },
+  { d: "Rheumatoid Arthritis", s: "moderate" },
+  { d: "Systemic Lupus Erythematosus", s: "severe" },
+  { d: "Iron Deficiency Anemia", s: "mild" },
+  { d: "Hypothyroidism", s: "mild" },
+  { d: "Hyperthyroidism", s: "moderate" },
+  { d: "Upper Respiratory Tract Infection", s: "mild" },
+  { d: "Urinary Tract Infection", s: "mild" },
+  { d: "Gastroenteritis", s: "mild" },
+  { d: "Dengue Fever", s: "severe" },
 ];
 
 const SYMPTOMS_POOL = [
-  "fever, cough, body malaise",
-  "headache, nausea, dizziness",
-  "shortness of breath, chest tightness",
-  "abdominal pain, vomiting, diarrhea",
-  "dysuria, frequent urination, flank pain",
-  "joint pain, swelling, morning stiffness",
-  "productive cough, night sweats, weight loss",
-  "palpitations, tremors, heat intolerance",
-  "high-grade fever, rash, retro-orbital pain",
-  "cough with whitish sputum, runny nose, sore throat",
-  "epigastric pain, bloating, heartburn",
-  "fatigue, pallor, easy fatigability",
-  "polyuria, polydipsia, polyphagia",
-  "elevated blood pressure, occipital headache",
-  "wheezing, dyspnea on exertion",
-  "persistent sadness, loss of interest, sleep disturbances",
-  "excessive worry, restlessness, muscle tension",
-  "difficulty falling asleep, early morning awakening",
-  "mood swings, racing thoughts, impulsivity",
-  "hallucinations, delusions, disorganized speech",
-  "flashbacks, hypervigilance, avoidance",
-  "repetitive behaviors, intrusive thoughts",
-  "sudden intense fear, palpitations, shortness of breath",
-  "inattention, hyperactivity, impulsivity",
-  "social communication deficits, repetitive behaviors",
-  "right upper quadrant pain, nausea, vomiting",
-  "groin bulge, pain on lifting, burning sensation",
-  "severe abdominal pain, fever, rebound tenderness",
-  "hematemesis, melena, dizziness, pallor",
-  "localized swelling, erythema, warmth, pain",
+  "severe headache, blurred vision, chest tightness, elevated BP",
+  "polyuria, polydipsia, polyphagia, unexplained weight loss",
+  "progressive leg swelling, orthopnea, paroxysmal nocturnal dyspnea",
+  "productive cough, fever, chills, pleuritic chest pain",
+  "hemoptysis, night sweats, weight loss, chronic cough",
+  "nausea, vomiting, abdominal pain, decreased urine output",
+  "palpitations, dizziness, irregular heartbeat, fatigue",
+  "sudden onset unilateral leg swelling, warmth, redness",
+  "epigastric pain, hematemesis, melena, dizziness",
+  "jaundice, abdominal distension, easy bruising, fatigue",
+  "joint pain, swelling, morning stiffness lasting >1 hour",
+  "butterfly rash, joint pain, photosensitivity, oral ulcers",
+  "fatigue, pallor, exertional dyspnea, easy fatigability",
+  "weight gain, cold intolerance, constipation, dry skin",
+  "heat intolerance, palpitations, weight loss, tremors",
+  "wheeze, chest tightness, shortness of breath, dry cough",
+  "fever, cough, colds, sore throat, body malaise",
+  "dysuria, frequency, urgency, suprapubic pain",
+  "abdominal pain, vomiting, loose watery stools, fever",
+  "high fever, retro-orbital pain, myalgia, petechiae",
 ];
 
 const DRUGS_POOL = [
   {
     medicine: "Amlodipine",
     unit: "Tablet",
-    dosage: "5mg",
+    dosage: "10mg",
     purpose: "Hypertension",
     frequency: "1x daily",
   },
   {
     medicine: "Losartan",
     unit: "Tablet",
-    dosage: "50mg",
-    purpose: "Hypertension",
+    dosage: "100mg",
+    purpose: "Hypertension / CKD",
+    frequency: "1x daily",
+  },
+  {
+    medicine: "Carvedilol",
+    unit: "Tablet",
+    dosage: "25mg",
+    purpose: "Heart failure / Hypertension",
+    frequency: "2x daily with meals",
+  },
+  {
+    medicine: "Furosemide",
+    unit: "Tablet",
+    dosage: "40mg",
+    purpose: "Diuresis / Edema",
+    frequency: "1x daily in the morning",
+  },
+  {
+    medicine: "Spironolactone",
+    unit: "Tablet",
+    dosage: "25mg",
+    purpose: "Heart failure / Aldosteronism",
     frequency: "1x daily",
   },
   {
     medicine: "Metformin",
     unit: "Tablet",
-    dosage: "500mg",
+    dosage: "1000mg",
     purpose: "Diabetes control",
-    frequency: "2x daily",
+    frequency: "2x daily with meals",
+  },
+  {
+    medicine: "Glimepiride",
+    unit: "Tablet",
+    dosage: "2mg",
+    purpose: "Diabetes control",
+    frequency: "1x daily before breakfast",
+  },
+  {
+    medicine: "Insulin Glargine",
+    unit: "IU",
+    dosage: "20 units",
+    purpose: "Basal glycemic control",
+    frequency: "1x daily at bedtime",
+  },
+  {
+    medicine: "Insulin Aspart",
+    unit: "IU",
+    dosage: "6 units",
+    purpose: "Mealtime glycemic control",
+    frequency: "3x daily before meals",
   },
   {
     medicine: "Atorvastatin",
     unit: "Tablet",
-    dosage: "20mg",
-    purpose: "Dyslipidemia",
+    dosage: "40mg",
+    purpose: "Dyslipidemia / CVD risk",
     frequency: "1x daily at bedtime",
   },
   {
-    medicine: "Paracetamol",
+    medicine: "Ezetimibe",
     unit: "Tablet",
-    dosage: "500mg",
-    purpose: "Fever / Pain relief",
-    frequency: "Every 4-6 hours PRN",
+    dosage: "10mg",
+    purpose: "Adjunct lipid lowering",
+    frequency: "1x daily",
+  },
+  {
+    medicine: "Aspirin",
+    unit: "Tablet",
+    dosage: "80mg",
+    purpose: "Antiplatelet / CVD prevention",
+    frequency: "1x daily after breakfast",
+  },
+  {
+    medicine: "Clopidogrel",
+    unit: "Tablet",
+    dosage: "75mg",
+    purpose: "Antiplatelet",
+    frequency: "1x daily",
+  },
+  {
+    medicine: "Warfarin",
+    unit: "Tablet",
+    dosage: "5mg",
+    purpose: "Anticoagulation",
+    frequency: "1x daily, adjust per INR",
+  },
+  {
+    medicine: "Rivaroxaban",
+    unit: "Tablet",
+    dosage: "20mg",
+    purpose: "Anticoagulation (AF / DVT)",
+    frequency: "1x daily with evening meal",
+  },
+  {
+    medicine: "Allopurinol",
+    unit: "Tablet",
+    dosage: "300mg",
+    purpose: "Gout prevention",
+    frequency: "1x daily",
+  },
+  {
+    medicine: "Colchicine",
+    unit: "Tablet",
+    dosage: "0.6mg",
+    purpose: "Acute gout attack",
+    frequency: "2x daily for 5 days",
+  },
+  {
+    medicine: "Prednisone",
+    unit: "Tablet",
+    dosage: "30mg",
+    purpose: "Anti-inflammatory / Immunosuppression",
+    frequency: "1x daily, taper",
+  },
+  {
+    medicine: "Hydroxychloroquine",
+    unit: "Tablet",
+    dosage: "200mg",
+    purpose: "SLE / Rheumatoid arthritis",
+    frequency: "2x daily with meals",
+  },
+  {
+    medicine: "Methotrexate",
+    unit: "Tablet",
+    dosage: "7.5mg",
+    purpose: "Rheumatoid arthritis / SLE",
+    frequency: "1x weekly",
+  },
+  {
+    medicine: "Omeprazole",
+    unit: "Capsule",
+    dosage: "40mg",
+    purpose: "Acid suppression / PUD",
+    frequency: "1x daily before breakfast",
+  },
+  {
+    medicine: "Ferrous Sulfate",
+    unit: "Tablet",
+    dosage: "325mg",
+    purpose: "Iron deficiency anemia",
+    frequency: "1x daily between meals",
+  },
+  {
+    medicine: "Levothyroxine",
+    unit: "Tablet",
+    dosage: "100mcg",
+    purpose: "Hypothyroidism",
+    frequency: "1x daily on empty stomach",
+  },
+  {
+    medicine: "Propylthiouracil",
+    unit: "Tablet",
+    dosage: "100mg",
+    purpose: "Hyperthyroidism",
+    frequency: "3x daily",
   },
   {
     medicine: "Amoxicillin",
     unit: "Capsule",
     dosage: "500mg",
     purpose: "Bacterial infection",
-    frequency: "3x daily",
+    frequency: "3x daily for 7 days",
   },
   {
     medicine: "Azithromycin",
     unit: "Tablet",
     dosage: "500mg",
-    purpose: "Respiratory infection",
+    purpose: "Atypical pneumonia",
     frequency: "1x daily for 5 days",
-  },
-  {
-    medicine: "Ciprofloxacin",
-    unit: "Tablet",
-    dosage: "500mg",
-    purpose: "Urinary tract infection",
-    frequency: "2x daily",
-  },
-  {
-    medicine: "Metronidazole",
-    unit: "Tablet",
-    dosage: "500mg",
-    purpose: "GI infection",
-    frequency: "3x daily",
-  },
-  {
-    medicine: "Salbutamol",
-    unit: "Inhaler",
-    dosage: "100mcg",
-    purpose: "Bronchospasm relief",
-    frequency: "Every 6 hours PRN",
   },
   {
     medicine: "Isoniazid",
@@ -434,224 +473,86 @@ const DRUGS_POOL = [
     unit: "Capsule",
     dosage: "600mg",
     purpose: "TB treatment",
-    frequency: "1x daily",
+    frequency: "1x daily on empty stomach",
   },
   {
-    medicine: "Omeprazole",
-    unit: "Capsule",
-    dosage: "20mg",
-    purpose: "Acid reduction",
-    frequency: "1x daily before meals",
-  },
-  {
-    medicine: "Furosemide",
-    unit: "Tablet",
-    dosage: "40mg",
-    purpose: "Diuresis",
-    frequency: "1x daily AM",
-  },
-  {
-    medicine: "Ferrous Sulfate",
-    unit: "Tablet",
-    dosage: "325mg",
-    purpose: "Iron supplementation",
-    frequency: "1x daily",
-  },
-  {
-    medicine: "Cetirizine",
-    unit: "Tablet",
-    dosage: "10mg",
-    purpose: "Antihistamine",
-    frequency: "1x daily at bedtime",
-  },
-  {
-    medicine: "Ibuprofen",
-    unit: "Tablet",
-    dosage: "400mg",
-    purpose: "Pain / Inflammation",
-    frequency: "Every 8 hours PRN",
-  },
-  {
-    medicine: "Carvedilol",
-    unit: "Tablet",
-    dosage: "12.5mg",
-    purpose: "Heart failure / Hypertension",
-    frequency: "2x daily",
-  },
-  {
-    medicine: "Insulin Glargine",
-    unit: "IU",
-    dosage: "10 units",
-    purpose: "Glycemic control",
-    frequency: "1x daily at bedtime",
-  },
-  {
-    medicine: "Propranolol",
-    unit: "Tablet",
-    dosage: "40mg",
-    purpose: "Tachycardia / Hypertension",
-    frequency: "2x daily",
-  },
-  {
-    medicine: "Doxycycline",
-    unit: "Capsule",
-    dosage: "100mg",
-    purpose: "Bacterial infection",
-    frequency: "2x daily",
-  },
-  {
-    medicine: "Cefuroxime",
+    medicine: "Paracetamol",
     unit: "Tablet",
     dosage: "500mg",
-    purpose: "Respiratory infection",
-    frequency: "2x daily",
+    purpose: "Fever / Pain relief",
+    frequency: "Every 4–6 hours PRN",
   },
   {
-    medicine: "Prednisone",
-    unit: "Tablet",
-    dosage: "20mg",
-    purpose: "Anti-inflammatory",
-    frequency: "1x daily",
+    medicine: "Salbutamol",
+    unit: "Inhaler",
+    dosage: "100mcg",
+    purpose: "Acute bronchospasm relief",
+    frequency: "2 puffs every 4–6 hours PRN",
   },
-  {
-    medicine: "Sertraline",
-    unit: "Tablet",
-    dosage: "50mg",
-    purpose: "Depression / Anxiety",
-    frequency: "1x daily",
-  },
-  {
-    medicine: "Escitalopram",
-    unit: "Tablet",
-    dosage: "10mg",
-    purpose: "Anxiety / Depression",
-    frequency: "1x daily",
-  },
-  {
-    medicine: "Quetiapine",
-    unit: "Tablet",
-    dosage: "25mg",
-    purpose: "Mood stabilization",
-    frequency: "At bedtime",
-  },
-  {
-    medicine: "Olanzapine",
-    unit: "Tablet",
-    dosage: "5mg",
-    purpose: "Antipsychotic",
-    frequency: "1x daily",
-  },
-  {
-    medicine: "Risperidone",
-    unit: "Tablet",
-    dosage: "2mg",
-    purpose: "Antipsychotic",
-    frequency: "2x daily",
-  },
-  {
-    medicine: "Clonazepam",
-    unit: "Tablet",
-    dosage: "0.5mg",
-    purpose: "Anxiety / Seizures",
-    frequency: "As needed",
-  },
-  {
-    medicine: "Zolpidem",
-    unit: "Tablet",
-    dosage: "10mg",
-    purpose: "Insomnia",
-    frequency: "At bedtime PRN",
-  },
-  // Additional surgical drugs
-  {
-    medicine: "Tramadol",
-    unit: "Tablet",
-    dosage: "50mg",
-    purpose: "Moderate pain",
-    frequency: "Every 6 hours PRN",
-  },
-  {
-    medicine: "Celecoxib",
-    unit: "Capsule",
-    dosage: "200mg",
-    purpose: "Anti-inflammatory",
-    frequency: "1x daily",
-  },
-  {
-    medicine: "Cefuroxime",
-    unit: "Tablet",
-    dosage: "500mg",
-    purpose: "Surgical prophylaxis",
-    frequency: "2x daily",
-  },
-];
-
-// ── New doctor account — all seeded data will be owned by this user ──────────
-const REAL_DOCTOR = {
-  uid: "HIVzoMhjVXXMgVUv6AIF0DiWMs02",
-  name: "Romel Bautista",
-  displayName: "Dr. Romel Bautista",
-  field: "General Surgery",
-  medicalId: "123902447",
-  email: "rb@gmail.com",
-};
-
-// Secondary doctors used only for prescription "addedBy" display variety
-const DOCTORS = [
-  {
-    name: REAL_DOCTOR.displayName,
-    field: REAL_DOCTOR.field,
-    id: REAL_DOCTOR.medicalId,
-  },
-  { name: "Dr. Maria Santos", field: "Internal Medicine", id: "MD-9001" },
-  {
-    name: REAL_DOCTOR.displayName,
-    field: REAL_DOCTOR.field,
-    id: REAL_DOCTOR.medicalId,
-  },
-  { name: "Dr. Juan Reyes", field: "Cardiology", id: "MD-9003" },
-  {
-    name: REAL_DOCTOR.displayName,
-    field: REAL_DOCTOR.field,
-    id: REAL_DOCTOR.medicalId,
-  },
-  { name: "Dr. Ana Cruz", field: "Pediatrics", id: "MD-9004" },
 ];
 
 const EXAMINATIONS = [
-  "BP 130/80 mmHg, RR 18 cpm, HR 82 bpm, Temp 37.2°C. Chest: clear breath sounds bilaterally. Heart: regular rate and rhythm.",
-  "BP 150/90 mmHg, Temp 38.5°C. Lungs: crackles on right lower lobe. Abdomen: soft, non-tender.",
-  "BP 120/70 mmHg, Temp 36.8°C. Throat: hyperemic tonsils. Lungs: clear. Abdomen: non-tender.",
-  "BP 140/85 mmHg, HR 90 bpm. Abdomen: tenderness at McBurney's point. Bowel sounds: decreased.",
-  "BP 110/70 mmHg, Temp 38.2°C. Skin: petechiae noted on trunk and extremities.",
-  "BP 125/78 mmHg, HR 76 bpm. Mental status: anxious, restless. Speech: pressured.",
-  "BP 145/88 mmHg, HR 92 bpm. Mental status: depressed mood, flat affect. Speech: slow, monotone.",
-  "BP 118/72 mmHg, HR 68 bpm. Mental status: euthymic, cooperative. Speech: normal rate and tone.",
-  "BP 155/95 mmHg, HR 88 bpm. Mental status: irritable, labile. Speech: rapid, tangential.",
-  "BP 130/82 mmHg, HR 70 bpm. Mental status: guarded, suspicious. Speech: normal.",
-  // Surgical exams
-  "Abdomen: flat, soft, tender at right upper quadrant. Murphy's sign positive. Bowel sounds normal.",
-  "Inguinal area: visible bulge on right side, reducible. No signs of strangulation.",
-  "Abdomen: rigid, guarding, rebound tenderness at right lower quadrant. Positive Rovsing's sign.",
-  "Wound: 5cm incisional wound, edges well-approximated, no erythema or discharge. Afebrile.",
+  "BP 175/110 mmHg, HR 94 bpm, RR 20 cpm, Temp 36.8°C. JVD present. S3 gallop noted. Bibasal crackles. Pitting edema 2+ bilateral.",
+  "BP 162/98 mmHg, HR 88 bpm, Temp 37.0°C. FBS 14.2 mmol/L. No acute distress. Abdomen soft. Peripheral pulses intact.",
+  "BP 130/82 mmHg, HR 78 bpm, SpO2 94% RA. Lungs: dullness on percussion right lower lobe. Bronchial breath sounds noted.",
+  "BP 118/76 mmHg, HR 72 bpm, Temp 36.6°C. Alert and cooperative. Thyroid: mild diffuse enlargement. No palpable lymph nodes.",
+  "BP 148/92 mmHg, HR 96 bpm (irregular). ECG: irregularly irregular rhythm, absent P waves. No acute ST changes.",
+  "BP 124/80 mmHg, HR 70 bpm. Right leg: warm, erythematous, tender calf. Homans sign positive. Pitting edema unilateral.",
+  "BP 138/86 mmHg, Temp 37.4°C. Abdomen: epigastric tenderness, no guarding. Bowel sounds normoactive. No organomegaly.",
+  "BP 112/70 mmHg, HR 102 bpm, Temp 38.8°C. Conjunctival pallor. Petechiae bilateral lower extremities. Tourniquet test positive.",
+  "BP 144/90 mmHg, HR 80 bpm. Joints: MCPs, PIPs swollen bilaterally. Grip strength reduced. Rheumatoid nodules noted.",
+  "BP 128/78 mmHg, HR 74 bpm, Temp 36.9°C. Malar rash present. Oral ulcers 2. Mild synovitis bilateral wrists and knees.",
 ];
 
 const RECOMMENDATIONS = [
-  "Adequate rest, increase oral fluid intake, avoid strenuous activities for 1 week. Follow-up in 7 days.",
-  "Low-sodium diet, daily BP monitoring at home. Lifestyle modification advised. Follow-up in 2 weeks.",
-  "Strict diabetic diet, regular exercise 30 min/day. Monitor blood sugar daily. Return if symptomatic.",
-  "Complete medication course. Avoid smoking and alcohol. Follow-up CBC and chest X-ray after 2 weeks.",
-  "Bed rest, increased fluid intake 2-3L/day, soft diet. Seek emergency care if bleeding signs appear.",
-  "Continue medication as prescribed. Schedule psychotherapy sessions weekly. Follow-up in 4 weeks.",
-  "Maintain regular sleep schedule. Avoid caffeine and alcohol. Consider mindfulness exercises. Follow-up in 2 weeks.",
-  "Medication adherence is crucial. Family support recommended. Follow-up in 1 month.",
-  "Reduce stressors, practice relaxation techniques. Regular exercise and balanced diet. Follow-up in 3 weeks.",
-  "Structured daily routine. Avoid triggers. Continue with cognitive behavioral therapy. Follow-up in 4 weeks.",
-  // Surgical recommendations
-  "Post-op: avoid heavy lifting >5kg for 2 weeks. Monitor wound for signs of infection. Follow-up in 1 week.",
-  "Schedule for elective cholecystectomy. Maintain low-fat diet pre-op. Arrange for pre-surgical clearance.",
-  "Advise warm sitz baths, increase fluid intake. Plan for herniorrhaphy within the month.",
-  "Complete antibiotic course. Return to ER if fever >38.5°C or worsening pain. Follow-up in 3 days.",
+  "Low-sodium (< 2g/day) diet. Daily weight monitoring. Fluid restriction 1.5 L/day. Follow-up in 1 week with BMP and chest X-ray.",
+  "Strict diabetic diet. Daily blood glucose monitoring fasting and 2-hr post-prandial. HbA1c in 3 months. Podiatry referral.",
+  "Complete antibiotic course. High-protein diet. Deep breathing exercises. Repeat chest X-ray after 4 weeks.",
+  "Regular aerobic exercise 30 min/day. Low-purine diet. Hydration 2–3 L/day. Uric acid level in 1 month.",
+  "INR monitoring weekly until therapeutic. Avoid NSAIDs and aspirin. Report any unusual bleeding. Follow-up in 2 weeks.",
+  "Elevate affected limb. Compression stockings. Ambulate early. DVT ultrasound in 3 months. Anticoagulation for 3–6 months.",
+  "DOTS therapy — directly observed treatment. Monthly LFTs. Sputum AFB in 2 months. Notify contacts for screening.",
+  "Thyroid function test in 6–8 weeks. Take medication 30 min before breakfast, separate from calcium by 4 hours.",
+  "Avoid triggers: NSAIDs, shellfish, alcohol. Colchicine for acute attacks. Long-term allopurinol after acute phase resolves.",
+  "Sun protection SPF 50+. Avoid sulfa drugs. Hydroxychloroquine eye exam annually. Lupus nephritis panel in 1 month.",
+];
+
+const FAMILY_HEALTH_PROBLEMS = [
+  "Hypertension",
+  "Diabetes",
+  "Heart attack",
+  "Stroke",
+  "Chronic kidney disease",
+  "Hyperlipidemia",
+  "Gout",
+  "Rheumatoid arthritis",
+  "Lupus",
+  "Thyroid disease",
+  "Tuberculosis",
+  "Liver disease",
+  "COPD",
+  "Atrial fibrillation",
+  "Anemia",
+];
+const RELATIONS = [
+  "Father",
+  "Mother",
+  "Sibling",
+  "Grandfather",
+  "Grandmother",
+  "Uncle",
+  "Aunt",
+  "Cousin",
+];
+const NOTES_LIST = [
+  "Ongoing management",
+  "First episode",
+  "Improving",
+  "Worsening",
+  "Stable",
+  "Controlled",
+  "Under monitoring",
+  "",
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -660,16 +561,13 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const bool = (prob = 0.3) => Math.random() < prob;
 
-/** Returns a timestamp for a random date within the given year, spread month by month */
-function dateInYear(yearOffset = 0, monthIndex = null) {
-  const now = new Date();
-  const year = now.getFullYear() - yearOffset;
-  const month = monthIndex !== null ? monthIndex : rand(0, 11);
-  const day = rand(1, 28);
-  return new Date(year, month, day, rand(7, 17), rand(0, 59)).getTime();
+function randPastTs(startMs) {
+  const now = Date.now();
+  return Math.floor(startMs + Math.random() * (now - startMs));
 }
 
-/** Format date for display (birthdate style) */
+const START_OF_YEAR = new Date(new Date().getFullYear(), 0, 1).getTime();
+
 function fmtBirthdate(ts) {
   return new Date(ts).toLocaleDateString("en-US", {
     month: "long",
@@ -678,119 +576,75 @@ function fmtBirthdate(ts) {
   });
 }
 
-// ─── Mock data generator ──────────────────────────────────────────────────────
+// ─── Mock data builder ────────────────────────────────────────────────────────
 
 function generatePatients(count = 100) {
   const patients = [];
+
   for (let i = 0; i < count; i++) {
-    // Gender: random with slight male majority (52% male)
-    const gender = Math.random() < 0.52 ? "MALE" : "FEMALE";
+    // Internal Medicine — roughly equal gender split, slight male bias (55%)
+    const gender = Math.random() < 0.55 ? "MALE" : "FEMALE";
     const firstName = gender === "MALE" ? pick(MALE_FIRST) : pick(FEMALE_FIRST);
     const lastName = pick(LAST_NAMES);
-
-    // Age: wider range (10–79)
-    const age = rand(10, 79);
-
-    // Height constant per gender
-    const heightCm = gender === "MALE" ? 175 : 162;
-
-    // Weight range based on gender
-    const weightKg = gender === "MALE" ? rand(55, 95) : rand(45, 85);
-
+    // Internal Medicine patients tend to be older (35–80)
+    const age = rand(35, 80);
     const city = pick(CITIES);
     const province = pick(PROVINCES);
     const street = pick(STREETS);
     const phone = `09${rand(10, 99)}${rand(1000000, 9999999)}`;
-    const doctor = pick(DOCTORS);
 
-    // Birthdate based on age
     const birthYear = new Date().getFullYear() - age;
     const birthdateTs = new Date(birthYear, rand(0, 11), rand(1, 28)).getTime();
 
-    // Health flags – some patients have flags
-    const drugAllergy = bool(0.2);
-    const foodAllergy = bool(0.15);
-    const isTBPositive = bool(0.1);
-    const medicalCare = bool(0.4);
-    const hasClinician = bool(0.1);
-    const diet = bool(0.15);
+    const heightCm = gender === "MALE" ? rand(158, 178) : rand(148, 168);
+    const weightKg = gender === "MALE" ? rand(58, 100) : rand(48, 90);
 
-    // Family history
-    const relations = [
-      "Father",
-      "Mother",
-      "Sibling",
-      "Grandfather",
-      "Grandmother",
-      "Uncle",
-      "Aunt",
-      "Cousin",
-      "Child",
-      "Spouse",
-    ];
-    const famHistCount = rand(1, 3);
+    // Internal Medicine patients have higher flag rates
+    const drugAllergy = bool(0.25);
+    const foodAllergy = bool(0.15);
+    const isTBPositive = bool(0.12);
+    const medicalCare = bool(0.65); // most IM patients are under chronic care
+    const hasClinician = bool(0.08);
+    const diet = bool(0.5); // most have dietary restrictions
+
+    const famHistCount = rand(1, 4);
     const familyHistory = Array.from({ length: famHistCount }, () => ({
-      relation: pick(relations),
+      relation: pick(RELATIONS),
       age: String(rand(45, 85)),
-      healthProblems: pick([
-        "Hypertension",
-        "Diabetes",
-        "Heart disease",
-        "Cancer",
-        "Stroke",
-        "Asthma",
-        "Kidney disease",
-        "Depression",
-        "Anxiety",
-        "Dementia",
-        "Parkinson's",
-        "COPD",
-        "Arthritis",
-        "Thyroid disorder",
-        "Gallbladder disease",
-        "Hernia",
-        "Appendicitis",
-      ]),
-      goodHealth: bool(0.5),
-      isAlive: bool(0.7),
+      healthProblems: pick(FAMILY_HEALTH_PROBLEMS),
+      goodHealth: bool(0.4),
+      isAlive: bool(0.65),
     }));
 
-    // Records — 1 to 3 per patient, spread across different months
+    const patientCreatedAt = randPastTs(START_OF_YEAR);
+
+    // 1–3 records per patient
     const recordCount = rand(1, 3);
-    const monthsUsed = new Set();
-    while (monthsUsed.size < recordCount) monthsUsed.add(rand(0, 11));
-    const months = [...monthsUsed].sort((a, b) => a - b);
+    const recordDates = Array.from({ length: recordCount }, () =>
+      randPastTs(patientCreatedAt),
+    ).sort((a, b) => a - b);
 
-    const records = months.map((monthIdx) => {
-      const createdAt = dateInYear(0, monthIdx);
-      const diag1 = pick(DIAGNOSES);
-      const diag2 = bool(0.4) ? pick(DIAGNOSES) : null;
-      const diagnosis = [
-        {
-          diagnosis: diag1.d,
-          severity: diag1.s,
-          notes: bool(0.5) ? "Ongoing management" : "",
-        },
-        ...(diag2
-          ? [{ diagnosis: diag2.d, severity: diag2.s, notes: "" }]
-          : []),
-      ];
+    const records = recordDates.map((createdAt) => {
+      const numDiag = rand(1, 3);
+      const diagPool = [...DIAGNOSES]
+        .sort(() => Math.random() - 0.5)
+        .slice(0, numDiag);
+      const diagnosis = diagPool.map((d) => ({
+        diagnosis: d.d,
+        severity: d.s,
+        notes: pick(NOTES_LIST),
+      }));
 
-      const hasPrescription = bool(0.6); // 60% chance of prescription
+      const hasPrescription = bool(0.65); // IM patients almost always have meds
 
-      // Pick 1-3 drugs
-      const drugCount = rand(1, 3);
-      const selectedDrugs = [];
-      const usedIdx = new Set();
-      while (selectedDrugs.length < drugCount) {
-        const idx = rand(0, DRUGS_POOL.length - 1);
-        if (!usedIdx.has(idx)) {
-          usedIdx.add(idx);
-          selectedDrugs.push({ ...DRUGS_POOL[idx] });
-        }
-      }
+      const numDrugs = rand(2, 4); // IM patients tend to have more drugs
+      const selectedDrugs = [...DRUGS_POOL]
+        .sort(() => Math.random() - 0.5)
+        .slice(0, numDrugs)
+        .map((d) => ({ ...d }));
 
-      const doc = pick(DOCTORS);
+      const updatedAt = createdAt;
+
       const prescription = hasPrescription
         ? {
             patientFirstName: firstName,
@@ -802,10 +656,11 @@ function generatePatients(count = 100) {
             examination: pick(EXAMINATIONS),
             recommendation: pick(RECOMMENDATIONS),
             drugs: selectedDrugs,
-            addedBy: doc.name,
-            field: doc.field,
-            doctorId: doc.id,
-            createdBy: REAL_DOCTOR.uid,
+            addedBy: `${DOCTOR.firstName} ${DOCTOR.lastName}`,
+            field: DOCTOR.field,
+            doctorId: DOCTOR.medicalId,
+            createdBy: DOCTOR.uid,
+            approvedBy: `${DOCTOR.firstName} ${DOCTOR.lastName}`,
             updatedAt: new Date(createdAt).toLocaleString(),
           }
         : null;
@@ -813,13 +668,14 @@ function generatePatients(count = 100) {
       return {
         diagnosis,
         symptoms: pick(SYMPTOMS_POOL),
-        bloodPressure: `${rand(100, 160)}/${rand(60, 100)}`,
-        heartRate: String(rand(60, 110)),
-        respiratoryRate: String(rand(14, 22)),
-        temperature: (rand(365, 392) / 10).toFixed(1),
-        oxygenSaturation: String(rand(94, 100)),
+        bloodPressure: `${rand(105, 185)}/${rand(65, 115)}`,
+        heartRate: String(rand(55, 115)),
+        respiratoryRate: String(rand(14, 24)),
+        temperature: (rand(364, 395) / 10).toFixed(1),
+        oxygenSaturation: String(rand(90, 100)),
         weight: String(weightKg),
         height: String(heightCm),
+
         medicalCare,
         drugAllergy,
         foodAllergy,
@@ -827,10 +683,14 @@ function generatePatients(count = 100) {
         hasClinician,
         diet,
         familyHistory,
-        addedBy: REAL_DOCTOR.displayName,
-        approvedBy: REAL_DOCTOR.name,
-        createdBy: REAL_DOCTOR.uid,
+
+        linkId: null,
+        addedBy: DOCTOR.username,
+        approvedBy: `${DOCTOR.firstName} ${DOCTOR.lastName}`,
+        createdBy: DOCTOR.uid,
         createdAt,
+        updatedAt,
+
         prescription,
       };
     });
@@ -847,8 +707,7 @@ function generatePatients(count = 100) {
       city,
       province,
       telephone: phone,
-      addedBy: REAL_DOCTOR.displayName,
-      createdBy: REAL_DOCTOR.uid,
+
       medicalCare,
       drugAllergy,
       foodAllergy,
@@ -856,11 +715,20 @@ function generatePatients(count = 100) {
       hasClinician,
       diet,
       familyHistory,
-      records,
+
       height: heightCm,
       weight: weightKg,
+
+      addedBy: DOCTOR.username,
+      approvedBy: `${DOCTOR.firstName} ${DOCTOR.lastName}`,
+      createdBy: DOCTOR.uid,
+      createdAt: patientCreatedAt,
+      updatedAt: patientCreatedAt,
+
+      records,
     });
   }
+
   return patients;
 }
 
@@ -882,7 +750,6 @@ export function MockDataSeeder() {
     setProgress({ current: 0, total: 0 });
 
     try {
-      // Count existing records globally for recordNumber sequencing
       const allPatientsSnap = await get(ref(db, "patients"));
       let totalExistingRecords = 0;
       if (allPatientsSnap.exists()) {
@@ -894,9 +761,7 @@ export function MockDataSeeder() {
 
       const mockPatients = generatePatients(100);
       setProgress({ current: 0, total: mockPatients.length });
-      appendLog(
-        `Generated ${mockPatients.length} mock patients. Starting push…`,
-      );
+      appendLog(`Generated ${mockPatients.length} patients. Starting push…`);
 
       let patientsAdded = 0;
       let recordsAdded = 0;
@@ -904,19 +769,13 @@ export function MockDataSeeder() {
       let recordNumberCounter = totalExistingRecords;
 
       for (let i = 0; i < mockPatients.length; i++) {
-        const p = mockPatients[i];
-        const { records: patientRecords, ...patientData } = p;
+        const { records: patientRecords, ...patientData } = mockPatients[i];
 
-        // Push patient
         const patientRef = push(ref(db, "patients"));
         const patientId = patientRef.key;
-        await set(patientRef, {
-          ...patientData,
-          id: patientId,
-        });
+        await set(patientRef, { ...patientData, id: patientId });
         patientsAdded++;
 
-        // Push records for this patient
         for (const record of patientRecords) {
           const { prescription: prescData, ...recordData } = record;
           recordNumberCounter++;
@@ -932,7 +791,6 @@ export function MockDataSeeder() {
           });
           recordsAdded++;
 
-          // Push prescription if present
           if (prescData) {
             await set(
               ref(db, `patients/${patientId}/records/${recordId}/prescription`),
@@ -942,24 +800,21 @@ export function MockDataSeeder() {
           }
         }
 
-        // Log every 10 patients
         if ((i + 1) % 10 === 0) {
-          appendLog(`✓ Pushed ${i + 1} / ${mockPatients.length} patients…`);
+          appendLog(`✓ ${i + 1} / ${mockPatients.length} patients pushed…`);
         }
-
         setProgress({ current: i + 1, total: mockPatients.length });
       }
 
-      // Write a single seeder log entry
       const logsRef = push(ref(db, "logs"));
       await set(logsRef, {
-        medicalRecordLog: `Mock data seeded by ${REAL_DOCTOR.displayName}: ${patientsAdded} patients, ${recordsAdded} records, ${prescriptionsAdded} prescriptions.`,
+        medicalRecordLog: `Mock data seeded by ${DOCTOR.displayName} (${DOCTOR.email}): ${patientsAdded} patients, ${recordsAdded} records, ${prescriptionsAdded} prescriptions.`,
         logTime: new Date().toLocaleString(),
       });
 
       setSummary({ patientsAdded, recordsAdded, prescriptionsAdded });
       appendLog(
-        `🎉 Done! ${patientsAdded} patients, ${recordsAdded} records, ${prescriptionsAdded} prescriptions added.`,
+        `🎉 Done! ${patientsAdded} patients, ${recordsAdded} records, ${prescriptionsAdded} prescriptions.`,
       );
       setStatus("done");
     } catch (err) {
@@ -976,25 +831,22 @@ export function MockDataSeeder() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-start justify-center p-6">
       <div className="w-full max-w-xl bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        {/* Header */}
         <div className="bg-[#1a1a2e] px-6 py-5">
           <h1 className="text-xl font-bold text-white">Database Seeder</h1>
           <p className="text-sm text-gray-400 mt-0.5">
             Push 100 mock patients with records to Firebase
           </p>
           <p className="text-xs text-[#00a896] mt-1 font-mono">
-            Owner: {REAL_DOCTOR.displayName} · {REAL_DOCTOR.email} ·{" "}
-            {REAL_DOCTOR.field}
+            Owner: {DOCTOR.displayName} · {DOCTOR.email} · {DOCTOR.field}
           </p>
         </div>
 
         <div className="p-6 space-y-5">
-          {/* Info grid */}
           <div className="grid grid-cols-3 gap-3 text-center text-sm">
             {[
               { label: "Patients", value: "100" },
               { label: "Records", value: "100–300" },
-              { label: "Prescriptions", value: "~60%" },
+              { label: "Prescriptions", value: "~65%" },
             ].map((s) => (
               <div
                 key={s.label}
@@ -1006,30 +858,32 @@ export function MockDataSeeder() {
             ))}
           </div>
 
-          {/* What gets generated */}
           <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-1.5 text-xs text-gray-600">
             <p className="font-semibold text-gray-700 mb-2">
               What gets seeded:
             </p>
             {[
-              "✓ ~52% male & ~48% female patients (Filipino names)",
-              "✓ Ages 10–79 (broader range)",
-              "✓ Height is constant per gender: male 175 cm, female 162 cm",
-              "✓ Weight is gender‑specific (male 55–95 kg, female 45–85 kg)",
-              "✓ Dates spread across all 12 months of the current year",
-              "✓ 1–3 consultation records per patient (different months)",
-              "✓ 30+ different diagnoses (including surgical conditions)",
-              "✓ 30+ different drugs (including surgical medications)",
-              "✓ 60% of records include a prescription",
+              "✓ ~55% male / 45% female (Internal Medicine bias)",
+              "✓ Ages 35–80 (chronic disease patient range)",
+              "✓ Filipino names — Visayas / Mindanao / Cordillera cities",
+              "✓ Height & weight consistent per gender",
+              "✓ Dates spread across this year — never exceed today",
+              "✓ 1–3 consultation records per patient (sequential dates)",
+              "✓ 30 diagnoses (Internal Medicine focused — HTN, DM, CKD, CHF, etc.)",
+              "✓ 30 drugs (IM focused — antihypertensives, antidiabetics, anticoagulants, etc.)",
+              "✓ ~65% of records include a full prescription",
+              "✓ 2–4 drugs per prescription (IM patients typically on multiple meds)",
               "✓ Vital signs, symptoms, family history per record",
-              "✓ Health flags (TB, drug/food allergies) on some patients",
-              `✓ All records owned by: ${REAL_DOCTOR.displayName} (${REAL_DOCTOR.field})`,
+              "✓ Higher medicalCare (65%) and diet (50%) flag rates for chronic patients",
+              `✓ All data owned by: ${DOCTOR.displayName} (${DOCTOR.field})`,
+              "✓ addedBy = username · approvedBy = full name · createdBy = UID",
+              "✓ linkId: null on all records (no linked secretary)",
+              "✓ recordNumber continues from existing DB records",
             ].map((line) => (
               <p key={line}>{line}</p>
             ))}
           </div>
 
-          {/* Progress bar */}
           {status === "running" && (
             <div className="space-y-2">
               <div className="flex justify-between text-xs text-gray-500">
@@ -1047,7 +901,6 @@ export function MockDataSeeder() {
             </div>
           )}
 
-          {/* Summary card */}
           {summary && (
             <div className="rounded-xl border border-green-200 bg-green-50 p-4 grid grid-cols-3 gap-2 text-center text-sm">
               {[
@@ -1063,7 +916,6 @@ export function MockDataSeeder() {
             </div>
           )}
 
-          {/* Seed button */}
           <button
             onClick={handleSeed}
             disabled={status === "running"}
@@ -1082,12 +934,10 @@ export function MockDataSeeder() {
 
           {status === "done" && (
             <p className="text-center text-xs text-gray-400">
-              You can run the seeder multiple times — it always appends new
-              data.
+              Safe to run multiple times — always appends, never overwrites.
             </p>
           )}
 
-          {/* Log output */}
           {log.length > 0 && (
             <div className="rounded-xl bg-[#1a1a2e] p-4 max-h-48 overflow-y-auto space-y-1">
               {log.map((line, i) => (

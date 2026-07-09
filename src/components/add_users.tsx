@@ -38,26 +38,44 @@ export function AddUser() {
     medicalId: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-
+  const passwordReg =
+    /^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$/;
   const handleChange = (key: string, value: string) => {
     setFields((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: "" }));
   };
-
   const validateFields = () => {
     const newErrors: Record<string, string> = {};
+
     if (!fields.firstName) newErrors.firstName = "First name is required.";
+
+    if (!fields.lastName) newErrors.lastName = "Last name is required.";
+
     if (!fields.email) newErrors.email = "Email is required.";
+
     if (!fields.username) newErrors.username = "Username is required.";
-    if (!fields.password) newErrors.password = "Password is required.";
-    if (!fields.birthMonth) newErrors.birthMonth = "Required.";
-    if (!fields.birthYear) newErrors.birthYear = "Required.";
-    if (!fields.birthDay) newErrors.birthDay = "Required.";
+
+    if (!fields.password) {
+      newErrors.password = "Password is required.";
+    } else if (!passwordReg.test(fields.password)) {
+      newErrors.password =
+        "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.";
+    }
+
+    if (!fields.birthMonth) newErrors.birthMonth = "Month is required.";
+
+    if (!fields.birthDay) newErrors.birthDay = "Day is required.";
+
+    if (!fields.birthYear) newErrors.birthYear = "Year is required.";
+
     if (isDoctor && !fields.department)
       newErrors.department = "Department is required.";
+
     if (isDoctor && !fields.medicalId)
       newErrors.medicalId = "Medical ID is required.";
+
     setErrors(newErrors);
+
     return Object.keys(newErrors).length === 0;
   };
 
@@ -84,7 +102,6 @@ export function AddUser() {
         linkId: "",
       });
       toast.success("Account created successfully!");
-      navigate("/records");
     } catch (error: any) {
       setErrors({ general: error.message });
     }
@@ -96,11 +113,12 @@ export function AddUser() {
         e.preventDefault();
         handleSignUp();
       }}
-      className="w-full space-y-5"
+      className="w-full max-w-md mx-auto space-y-5 px-1"
     >
       {/* Name row */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
+      <h1 className="text-l font-bold text-[#00a896] ">ADD A USER</h1>
+      <div className="grid grid-cols-2 gap-3 ">
+        <div className="space-y-1.5 min-w-0">
           <label className="text-sm font-medium text-gray-700">
             First Name
           </label>
@@ -114,7 +132,7 @@ export function AddUser() {
             <p className="text-red-500 text-xs">{errors.firstName}</p>
           )}
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 min-w-0">
           <label className="text-sm font-medium text-gray-700">Last Name</label>
           <Input
             placeholder="Last name"
@@ -162,6 +180,10 @@ export function AddUser() {
           onChange={(e) => handleChange("password", e.target.value)}
           className="h-11"
         />
+        <p className="text-xs text-gray-500">
+          Must be at least 8 characters and include an uppercase letter,
+          lowercase letter, number, and special character.
+        </p>
         {errors.password && (
           <p className="text-red-500 text-xs">{errors.password}</p>
         )}
@@ -173,12 +195,12 @@ export function AddUser() {
           Date of Birth
         </label>
         <div className="grid grid-cols-3 gap-2">
-          <div>
+          <div className="min-w-0">
             <Select
               value={fields.birthMonth}
               onValueChange={(v) => handleChange("birthMonth", v)}
             >
-              <SelectTrigger className="h-11 !bg-[#00a896] !text-white">
+              <SelectTrigger className="h-11 !bg-[#00a896] !text-white w-full">
                 <SelectValue placeholder="Month" />
               </SelectTrigger>
               <SelectContent>
@@ -196,7 +218,7 @@ export function AddUser() {
               <p className="text-red-500 text-xs mt-1">{errors.birthMonth}</p>
             )}
           </div>
-          <div>
+          <div className="min-w-0">
             <Input
               type="text"
               inputMode="numeric"
@@ -209,12 +231,12 @@ export function AddUser() {
               <p className="text-red-500 text-xs mt-1">{errors.birthDay}</p>
             )}
           </div>
-          <div>
+          <div className="min-w-0">
             <Select
               value={fields.birthYear}
               onValueChange={(v) => handleChange("birthYear", v)}
             >
-              <SelectTrigger className="h-11 !bg-[#00a896] !text-white">
+              <SelectTrigger className="h-11 !bg-[#00a896] !text-white w-full">
                 <SelectValue placeholder="Year" />
               </SelectTrigger>
               <SelectContent>
@@ -236,17 +258,22 @@ export function AddUser() {
       </div>
 
       {/* Doctor toggle */}
-      <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50">
-        <div>
-          <p className="text-sm font-medium text-gray-700">Are you a Doctor?</p>
+      <div className="flex items-center justify-between gap-3 p-4 rounded-xl border border-gray-100 bg-gray-50">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-gray-700">
+            Are they a Doctor?
+          </p>
           <p className="text-xs text-gray-400 mt-0.5">
             Toggle to sign up as a doctor
           </p>
         </div>
-        <Switch checked={isDoctor} onCheckedChange={setIsDoctor} />
+        <Switch
+          checked={isDoctor}
+          onCheckedChange={setIsDoctor}
+          className="shrink-0"
+        />
       </div>
 
-      {/* Doctor-only fields — stacked, not inside a conditional that breaks layout */}
       {isDoctor && (
         <div className="space-y-4 p-4 rounded-xl border border-[#00c4b4]/30 bg-[#00a896]/5">
           <p className="text-xs font-semibold text-[#00a896] uppercase tracking-wider">
@@ -288,11 +315,12 @@ export function AddUser() {
             <label className="text-sm font-medium text-gray-700">
               Medical ID
             </label>
-            <div className="flex justify-center py-2">
+            <div className="flex justify-center py-2 overflow-x-auto">
               <InputOTP
                 maxLength={9}
                 value={fields.medicalId}
                 onChange={(value) => handleChange("medicalId", value)}
+                containerClassName="flex-wrap justify-center gap-y-2"
               >
                 <InputOTPGroup>
                   <InputOTPSlot index={0} />

@@ -417,8 +417,8 @@ export function AddConsultationRecords({
         familyHistory,
 
         linkId: currentUserLinkId,
-        addedBy: user?.email,
-        createdBy: user?.uid,
+        addedBy: user?.username,
+        createdBy: [user?.firstName, user?.lastName].filter(Boolean).join(", "),
         createdAt: Date.now(),
       };
 
@@ -430,9 +430,6 @@ export function AddConsultationRecords({
           patientId: patient.id,
           linkId: currentUserLinkId,
           status: "pending",
-          // approvedBy intentionally omitted here — this record hasn't been
-          // approved yet. pending-records.tsx stamps approvedBy/approvedAt
-          // when a doctor/admin actually approves it.
         });
         await set(newLog, {
           medicalRecordLog: `Consultation record added for approval by ${user?.firstName} ${user?.lastName} for patient ${patient.firstName} ${patient.lastName}`,
@@ -440,8 +437,6 @@ export function AddConsultationRecords({
         });
         toast.success("Consultation record submitted for approval!");
       } else {
-        // Doctor/admin adding directly — this record is effectively
-        // self-approved, so stamp approvedBy immediately.
         await set(newRecord, {
           ...recordData,
           approvedBy: `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim(),
@@ -467,7 +462,9 @@ export function AddConsultationRecords({
             addedBy: `${user?.firstName} ${user?.lastName}`,
             field: user?.field,
             doctorId: user?.medicalId,
-            createdBy: user?.uid,
+            createdBy: [user?.firstName, user?.lastName]
+              .filter(Boolean)
+              .join(", "),
             approvedBy:
               `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim(),
             updatedAt: new Date().toLocaleString(),

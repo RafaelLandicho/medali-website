@@ -397,7 +397,7 @@ export function ViewFullPatient({ patient }: FullDetails) {
     const newLog = push(logsRef);
 
     set(newLog, {
-      medicalRecordLog: `Consultation record of patient ${patient.firstName} ${patient.lastName} has been viewed by   ${user?.firstName} ${user?.lastName} `,
+      medicalRecordLog: `Consultation record ${patient.recordNumber} of patient ${patient.firstName} ${patient.lastName} has been viewed by   ${user?.firstName} ${user?.lastName} `,
       logTime: new Date().toLocaleString(),
     });
 
@@ -420,7 +420,7 @@ export function ViewFullPatient({ patient }: FullDetails) {
   const updateLog = async () => {
     const newLog = push(logsRef);
     await set(newLog, {
-      medicalRecordLog: `Medical Record ${patient.id} ${patient.firstName} ${patient.lastName} downloaded by ${user?.firstName} ${user?.lastName}`,
+      medicalRecordLog: `Medical Record ${patient.recordNumber} ${patient.firstName} ${patient.lastName} downloaded by ${user?.firstName} ${user?.lastName}`,
       logTime: new Date().toLocaleString(),
     });
   };

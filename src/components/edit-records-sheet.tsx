@@ -280,7 +280,7 @@ export function EditRecordsSheet({
       const logsRef = ref(db, "logs/");
       const newLog = push(logsRef);
       await set(newLog, {
-        medicalRecordLog: `Patient record updated by ${user?.firstName} ${user?.lastName} for patient ${fields.firstName} ${fields.lastName}`,
+        medicalRecordLog: `Patient record ${fields.firstName} ${fields.lastName} updated by ${user?.firstName} ${user?.lastName} `,
         logTime: new Date().toLocaleString(),
       });
 

@@ -313,24 +313,6 @@ export function ViewLogs() {
               Monitor and track all system activities
             </p>
           </div>
-          {/* <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => window.location.reload()}
-              className="flex items-center gap-2 !bg-[#00a896] !text-white hover:!bg-[#008f7a]"
-            >
-              <IconRefresh className="w-4 h-4" />
-              Refresh
-            </Button>
-            <Button
-              variant="outline"
-              onClick={exportToCSV}
-              className="flex items-center gap-2 !bg-[#00a896] !text-white hover:!bg-[#008f7a]"
-            >
-              <IconDownload className="w-4 h-4" />
-              Export CSV
-            </Button>
-          </div> */}
         </div>
 
         {/* Filters Card */}

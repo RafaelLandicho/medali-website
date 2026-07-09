@@ -28,6 +28,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { PendingRecords } from "./components/view-pending";
 import { EditProfile } from "./components/edit-profile";
 import { AddPatient } from "./components/add-patient";
+import { AddUser } from "./components/add_users";
 
 // @ts-ignore
 import { MockDataSeeder } from "./components/MockDataSeeder";
@@ -285,6 +286,16 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/add-user"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <AddUser />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/prescriptions"
@@ -306,7 +317,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          {/* View user profile */}
+
           <Route
             path="/profile"
             element={

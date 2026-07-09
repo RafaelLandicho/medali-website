@@ -171,12 +171,11 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
         updatedAt: new Date().toLocaleString(),
       });
 
-      // Also log it
       const logsRef = ref(db, "logs/");
       const { push } = await import("firebase/database");
       const newLog = push(logsRef);
       await set(newLog, {
-        prescriptionLog: `Prescription ${alreadyExists ? "updated" : "added"} by ${user?.firstName} ${user?.lastName} for record ${patient.recordId}`,
+        prescriptionLog: `Prescription ${alreadyExists ? "updated" : "added"} by ${user?.firstName} ${user?.lastName} for record ${patient.firstName}${patient.lastName}`,
         logTime: new Date().toLocaleString(),
       });
       console.log(
@@ -185,9 +184,9 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
       );
 
       toast.success(
-        `Prescription ${alreadyExists ? "updated" : "added"} for ${patient.firstName}`,
+        `Prescription ${alreadyExists ? "updated" : "added"} for  ${patient.firstName}${patient.lastName}`,
       );
-      setAlreadyExists(true); // it now exists
+      setAlreadyExists(true);
     } catch (error) {
       console.error(error);
       toast.error("Failed to save prescription");
@@ -320,7 +319,6 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
                 </div>
               </div>
 
-              {/* ── DRUG PRESCRIPTIONS ── */}
               <div className="space-y-4">
                 <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
                   <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
@@ -331,7 +329,6 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
                   </h2>
                 </div>
 
-                {/* TABLE HEADER */}
                 <div className="grid grid-cols-6 bg-gray-50 border border-gray-200 rounded-t-xl px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   <div>Medicine</div>
                   <div>Unit</div>
@@ -341,7 +338,6 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
                   <div className="text-center">Action</div>
                 </div>
 
-                {/* TABLE BODY */}
                 <div className="border border-t-0 border-gray-200 rounded-b-xl overflow-hidden divide-y divide-gray-200">
                   {prescriptions.map((drug, index) => (
                     <div
@@ -352,7 +348,7 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
                         placeholder="Paracetamol"
                         value={drug.medicine}
                         onChange={(value) =>
-                          handleDiagnosisChange(index, "diagnosis", value)
+                          handlePrescriptionChange(index, "medicine", value)
                         }
                       />
                       <Input
@@ -426,7 +422,6 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
                 </Button>
               </div>
 
-              {/* ── EXAMINATION & RECOMMENDATIONS ── */}
               <div className="space-y-4">
                 <div className="flex items-center gap-3 border-l-4 border-[#00c4b4] pl-4">
                   <div className="w-8 h-8 rounded-lg bg-[#00c4b4]/10 flex items-center justify-center flex-shrink-0">
@@ -466,7 +461,6 @@ export function AddPrescription({ patient }: AddPrescriptionProps) {
                 </div>
               </div>
 
-              {/* ── SAVE BUTTON ── */}
               <div className="flex justify-center pb-6">
                 <Button
                   type="submit"

@@ -72,13 +72,15 @@ import { useAuth } from "@/auth/authprovider";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AddRecordsDrawer } from "./add-records-drawer";
 import { FullRecordsDrawer } from "./viewfull-records-drawer";
+import { FullPrescriptionDrawer } from "./view-full-prescription-drawer";
 import { EditRecordsSheet } from "./edit-records-sheet";
 import { PrescriptionDrawer } from "./add-prescription-drawer";
 import { IconGenderAgender, IconNumber } from "@tabler/icons-react";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export type Prescription = {
+  id?: string;
+  createdAt?: string;
+  doctorId?: string;
   patientFirstName?: string;
   patientLastName?: string;
   patientAddress?: string;
@@ -96,7 +98,6 @@ export type Prescription = {
   }[];
   addedBy?: string;
   field?: string;
-  doctorId?: string;
   createdBy?: string;
   updatedAt?: string;
 };
@@ -160,9 +161,7 @@ export type Patient = {
 
 type PatientWithRecord = Patient & MedicalRecord;
 
-// ─── Patient Details Card ─────────────────────────────────────────────────────
-
-const HEALTH_HISTORY_ITEMS = [
+const healthHistory = [
   { key: "medicalCare", label: "Medical care" },
   { key: "drugAllergy", label: "Drug allergy" },
   { key: "foodAllergy", label: "Food allergy" },
@@ -172,13 +171,12 @@ const HEALTH_HISTORY_ITEMS = [
 ] as const;
 
 const PatientDetailsCard = ({ patient }: { patient: Patient }) => {
-  const activeFlags = HEALTH_HISTORY_ITEMS.filter(
+  const activeFlags = healthHistory.filter(
     (item) => !!patient[item.key as keyof Patient],
   );
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-      {/* ── Teal header strip ── */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-[#00a896] text-white">
         <div className="flex items-center gap-2">
           <UserIcon className="w-4 h-4 opacity-80" />
@@ -187,7 +185,6 @@ const PatientDetailsCard = ({ patient }: { patient: Patient }) => {
       </div>
 
       <div className="divide-y divide-gray-100">
-        {/* ── Row 1: Contact + Address ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-100">
           {[
             {
@@ -237,10 +234,7 @@ const PatientDetailsCard = ({ patient }: { patient: Patient }) => {
             </div>
           ))}
         </div>
-
-        {/* ── Row 2: Health flags + Family history ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
-          {/* Health flags */}
           <div className="px-4 py-3">
             <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#00a896] mb-2">
               <AlertTriangle className="w-3 h-3" />
@@ -340,6 +334,7 @@ const VITALS: { key: VitalKey; label: string; unit?: string; color: string }[] =
   ];
 
 // ─── Sparkline ────────────────────────────────────────────────────────────────
+// Algorithm derive from https://www.shadcn.io/blocks/tables-sparkline
 
 const Sparkline = ({
   records,
@@ -915,7 +910,6 @@ const ConsultationRecordActions = ({ records }: { records: MedicalRecord }) => {
         </>
       )}
 
-      {/* Prescription pill — hidden when expired */}
       {userIsDoctor && !isExpired && (
         <>
           <button
@@ -945,134 +939,6 @@ const ConsultationRecordActions = ({ records }: { records: MedicalRecord }) => {
   );
 };
 
-// ─── View Prescription Dialog ─────────────────────────────────────────────────
-
-const ViewPrescriptionDialog = ({
-  open,
-  onOpenChange,
-  record,
-  patient,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  record: MedicalRecord;
-  patient: Patient;
-}) => {
-  const prescription = record.prescription;
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Prescription Details</DialogTitle>
-          <DialogDescription>
-            {patient.firstName} {patient.lastName}
-            {prescription?.updatedAt ? ` · ${prescription.updatedAt}` : ""}
-            {` · Record #${record.recordNumber ?? record.recordId}`}
-          </DialogDescription>
-        </DialogHeader>
-        {!prescription ? (
-          <p className="text-sm text-gray-400 py-4">No prescription found.</p>
-        ) : (
-          <div className="space-y-5">
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Diagnosis
-              </p>
-              {prescription.diagnosis?.length ? (
-                <div className="space-y-2">
-                  {prescription.diagnosis.map((d, i) => (
-                    <div
-                      key={i}
-                      className="flex flex-col gap-1 p-2.5 rounded-lg border border-gray-100 bg-gray-50"
-                    >
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-gray-800">
-                          {d.diagnosis}
-                        </span>
-                        <SeverityBadge severity={d.severity} />
-                      </div>
-                      {d.notes && (
-                        <span className="text-xs text-gray-500 italic">
-                          {d.notes}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-300">No diagnosis recorded</p>
-              )}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Drugs
-              </p>
-              {prescription.drugs?.length ? (
-                <div className="space-y-1.5">
-                  {prescription.drugs.map((drug, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-2 p-2.5 rounded-lg border border-gray-100 bg-gray-50 text-sm flex-wrap"
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#00a896] shrink-0" />
-                      <span className="font-medium text-gray-800">
-                        {drug.medicine}
-                      </span>
-                      {(drug.dosage || drug.unit) && (
-                        <span className="text-gray-400">
-                          · {drug.dosage}
-                          {drug.unit}
-                        </span>
-                      )}
-                      {drug.frequency && (
-                        <span className="text-gray-400">
-                          · {drug.frequency}
-                        </span>
-                      )}
-                      {drug.purpose && (
-                        <span className="text-gray-400">· {drug.purpose}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-300">No drugs prescribed</p>
-              )}
-            </div>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                  Examination
-                </p>
-                <p className="text-sm text-gray-700">
-                  {prescription.examination || "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                  Recommendation
-                </p>
-                <p className="text-sm text-gray-700">
-                  {prescription.recommendation || "—"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-400 flex-wrap gap-1">
-              <span>
-                Added by {prescription.addedBy || "—"}
-                {prescription.field ? ` · ${prescription.field}` : ""}
-              </span>
-              {prescription.updatedAt && <span>{prescription.updatedAt}</span>}
-            </div>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-};
-
-// ─── Prescription Record Actions ──────────────────────────────────────────────
-
 const PrescriptionRecordActions = ({ record }: { record: MedicalRecord }) => {
   const { user } = useAuth();
   const location = useLocation();
@@ -1096,7 +962,6 @@ const PrescriptionRecordActions = ({ record }: { record: MedicalRecord }) => {
 
   return (
     <div className="flex items-center gap-1">
-      {/* View pill — always visible */}
       <button
         onClick={() => setOpenView(true)}
         title="View prescription"
@@ -1104,11 +969,10 @@ const PrescriptionRecordActions = ({ record }: { record: MedicalRecord }) => {
       >
         <PillIcon className="w-3.5 h-3.5 text-[#00a896]" />
       </button>
-      <ViewPrescriptionDialog
+      <FullPrescriptionDrawer
         open={openView}
         onOpenChange={setOpenView}
-        record={record}
-        patient={patient}
+        patient={patientWithRecord}
       />
 
       {/* Edit pen — hidden when expired */}
@@ -1397,15 +1261,7 @@ const prescriptionColumns: ColumnDef<MedicalRecord>[] = [
       </span>
     ),
   },
-  {
-    id: "approvedBy",
-    header: "Approved By",
-    cell: ({ row }) => (
-      <span className="text-sm text-gray-700">
-        {(row.original.prescription as any)?.approvedBy || "—"}
-      </span>
-    ),
-  },
+
   {
     id: "createdAt",
     header: "Created At",
@@ -1474,14 +1330,30 @@ export function ConsultationRecords() {
   React.useEffect(() => {
     if (!user || !patient?.id) return;
     let innerUnsub: (() => void) | undefined;
+
     const outerUnsub = onValue(ref(db, "users"), (usersSnap) => {
       innerUnsub?.();
-      const currentUser = (usersSnap.val() || {})[user.uid];
+      const usersData = usersSnap.val() || {};
+      const currentUser = usersData[user.uid];
       if (!currentUser) {
         setLoading(false);
         return;
       }
-      const currentUserLinkId: string | null = currentUser.linkId ?? null;
+
+      // Build the same linked-user group used for the patients list,
+      // so secretaries/staff linked to a doctor see that doctor's records too.
+      const linkedUsers: string[] = [];
+      if (currentUser.linkId) {
+        for (const uid in usersData) {
+          if (usersData[uid].linkId === currentUser.linkId) {
+            linkedUsers.push(uid);
+          }
+        }
+      } else {
+        linkedUsers.push(user.uid);
+      }
+
+      const isAdmin = currentUser.type?.toLowerCase() === "admin";
 
       innerUnsub = onValue(
         ref(db, `patients/${patient.id}/records`),
@@ -1504,17 +1376,17 @@ export function ConsultationRecords() {
                   };
                 })
                 .filter((record) => {
-                  if (currentUser.type === "admin") return true;
-                  // Visible if the current user created it, OR the record's
-                  // owning linkId matches the current user's linkId.
+                  if (isAdmin) return true;
+                  // Visible if created by the current user, by anyone in the
+                  // same linked group, or (legacy records) tagged with a
+                  // matching linkId directly.
                   return (
-                    record.createdBy === user.uid ||
+                    linkedUsers.includes(record.createdBy) ||
                     (!!record.linkId &&
-                      !!currentUserLinkId &&
-                      record.linkId === currentUserLinkId)
+                      !!currentUser.linkId &&
+                      record.linkId === currentUser.linkId)
                   );
                 })
-                // Latest created/updated first
                 .sort(
                   (a, b) =>
                     (b.updatedAt ?? b.createdAt ?? 0) -
@@ -1526,6 +1398,7 @@ export function ConsultationRecords() {
         },
       );
     });
+
     return () => {
       outerUnsub();
       innerUnsub?.();

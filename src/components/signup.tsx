@@ -38,6 +38,8 @@ export function SignUp() {
     medicalId: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const passwordReg =
+    /^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$/;
 
   const handleChange = (key: string, value: string) => {
     setFields((prev) => ({ ...prev, [key]: value }));
@@ -46,18 +48,36 @@ export function SignUp() {
 
   const validateFields = () => {
     const newErrors: Record<string, string> = {};
+
     if (!fields.firstName) newErrors.firstName = "First name is required.";
+
+    if (!fields.lastName) newErrors.lastName = "Last name is required.";
+
     if (!fields.email) newErrors.email = "Email is required.";
+
     if (!fields.username) newErrors.username = "Username is required.";
-    if (!fields.password) newErrors.password = "Password is required.";
-    if (!fields.birthMonth) newErrors.birthMonth = "Required.";
-    if (!fields.birthYear) newErrors.birthYear = "Required.";
-    if (!fields.birthDay) newErrors.birthDay = "Required.";
+
+    if (!fields.password) {
+      newErrors.password = "Password is required.";
+    } else if (!passwordReg.test(fields.password)) {
+      newErrors.password =
+        "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.";
+    }
+
+    if (!fields.birthMonth) newErrors.birthMonth = "Month is required.";
+
+    if (!fields.birthDay) newErrors.birthDay = "Day is required.";
+
+    if (!fields.birthYear) newErrors.birthYear = "Year is required.";
+
     if (isDoctor && !fields.department)
       newErrors.department = "Department is required.";
+
     if (isDoctor && !fields.medicalId)
       newErrors.medicalId = "Medical ID is required.";
+
     setErrors(newErrors);
+
     return Object.keys(newErrors).length === 0;
   };
 
@@ -162,6 +182,11 @@ export function SignUp() {
           onChange={(e) => handleChange("password", e.target.value)}
           className="h-11"
         />
+
+        <p className="text-xs text-gray-500">
+          Must be at least 8 characters and include an uppercase letter,
+          lowercase letter, number, and special character.
+        </p>
         {errors.password && (
           <p className="text-red-500 text-xs">{errors.password}</p>
         )}

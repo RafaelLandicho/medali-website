@@ -228,7 +228,7 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
       const newLog = push(logsRef);
       await remove(patientRef);
       await set(newLog, {
-        medicalRecordLog: `Record deleted by ${user?.firstName} ${user?.lastName}`,
+        medicalRecordLog: `Patient Record  ${patient.firstName} ${patient.lastName} deleted by ${user?.firstName} ${user?.lastName}`,
         logTime: new Date().toLocaleString(),
       });
       toast.success("Record deleted successfully!");
@@ -289,12 +289,7 @@ const MobilePatientCard = ({ patient }: { patient: Patient }) => {
             {patient.addedBy || "—"}
           </p>
         </div>
-        <div>
-          <span className="text-gray-400">Created by</span>
-          <p className="text-gray-700 font-medium truncate">
-            {patient.createdBy || patient.addedBy || "—"}
-          </p>
-        </div>
+
         <div>
           <span className="text-gray-400">Approved by</span>
           <p className="text-gray-700 font-medium truncate">
@@ -397,7 +392,7 @@ const DeletePatient = ({ patient }: { patient: Patient }) => {
       const newLog = push(logsRef);
       await remove(patientRef);
       await set(newLog, {
-        medicalRecordLog: `Patient deleted by ${user?.firstName} ${user?.lastName}`,
+        medicalRecordLog: `Patient ${patient.firstName} ${patient.lastName} deleted by ${user?.firstName} ${user?.lastName}`,
         logTime: new Date().toLocaleString(),
       });
       toast.success("Patient has been deleted successfully!");
@@ -621,16 +616,7 @@ export function MedicalRecords() {
       header: "Contact Number",
       filterFn: "includesString",
     },
-    {
-      accessorKey: "createdBy",
-      header: "Created By",
-      filterFn: "includesString",
-      cell: ({ row }) => (
-        <span className="text-sm text-gray-700">
-          {row.original.createdBy || row.original.addedBy || "—"}
-        </span>
-      ),
-    },
+
     { accessorKey: "addedBy", header: "Added By", filterFn: "includesString" },
     {
       accessorKey: "approvedBy",
@@ -703,7 +689,7 @@ export function MedicalRecords() {
     { id: "birthdate", label: "Birth Date" },
     { id: "address", label: "Address" },
     { id: "telephone", label: "Contact Number" },
-    { id: "createdBy", label: "Created By" },
+
     { id: "addedBy", label: "Added By" },
     { id: "approvedBy", label: "Approved By" },
     { id: "patientDiagnosis", label: "Diagnosis" },
@@ -856,6 +842,15 @@ export function MedicalRecords() {
             Manage and review patient records
           </p>
         </div>
+        {isMobile && (
+          <button
+            onClick={() => navigate("/add-patient")}
+            title="Add Patient"
+            className="inline-flex items-center justify-center w-10 h-10 rounded-lg text-white !bg-[#00a896] shadow hover:opacity-90 transition shrink-0"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       <StatsBar patients={data} isMobile={isMobile} />

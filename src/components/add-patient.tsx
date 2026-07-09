@@ -141,7 +141,6 @@ export function AddPatient() {
     setFields((prev) => ({ ...prev, [key]: value }));
   };
 
-  // ── FAMILY HISTORY HANDLERS ──
   const handleAddHistory = () =>
     setFamilyHistory([
       ...familyHistory,
@@ -225,7 +224,7 @@ export function AddPatient() {
         diet: fields.patientDiet,
         familyHistory: familyHistory,
         records: {},
-        addedBy: user?.username,
+        addedBy: [user?.firstName, user?.lastName].filter(Boolean).join(", "),
         createdBy: user?.uid,
         createdAt: Date.now(),
         linkId: currentUserLinkId,
@@ -234,14 +233,21 @@ export function AddPatient() {
       if (userIsSecretary) {
         await set(pending, { ...patientData, status: "pending" });
         await set(newLog, {
-          medicalRecordLog: `Medical Patient added for approval by ${user?.firstName} ${user?.lastName}`,
+          medicalRecordLog: `Medical Patient ${fields.patientFirstName} ${fields.patientLastName} added for approval by ${user?.firstName} ${user?.lastName}`,
           logTime: new Date().toLocaleString(),
         });
         toast.success("Patient has been added for approval!");
       } else {
-        await set(patient, patientData);
+        await set(patient, {
+          ...patientData,
+          status: "approved",
+          approvedBy: [user?.firstName, user?.lastName]
+            .filter(Boolean)
+            .join(", "),
+          approvedAt: Date.now(),
+        });
         await set(newLog, {
-          medicalRecordLog: `Medical Patient added by ${user?.firstName} ${user?.lastName}`,
+          medicalRecordLog: `Medical Patient ${fields.patientFirstName} ${fields.patientLastName} added by ${user?.firstName} ${user?.lastName}`,
           logTime: new Date().toLocaleString(),
         });
         toast.success("Patient has been added successfully!");
@@ -820,7 +826,6 @@ export function AddPatient() {
         </div>
       </Card>
 
-      {/* ── LINKED ACCOUNT NOTICE (replaces manual "share with" picker) ── */}
       {!userIsAdmin && linkedUser && (
         <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
           <Label className="text-base font-semibold text-blue-800 mb-1 flex items-center gap-2">
@@ -850,7 +855,6 @@ export function AddPatient() {
         </div>
       )}
 
-      {/* ── SUBMIT ── */}
       <div className="flex justify-center mt-8 md:mt-10 pb-6">
         <Button
           type="submit"

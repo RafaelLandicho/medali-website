@@ -250,7 +250,7 @@ const MobilePrescriptionCard = ({
       const newLog = push(logsRef);
       await remove(prescriptionRef);
       await set(newLog, {
-        prescriptionLog: `Prescription deleted by ${user?.firstName} ${user?.lastName}`,
+        prescriptionLog: `Prescription for patient ${prescription.patientFirstName} ${prescription.patientLastName} deleted by ${user?.firstName} ${user?.lastName}`,
         logTime: new Date().toLocaleString(),
       });
       toast.success("Prescription deleted successfully!");
@@ -522,7 +522,7 @@ const DeleteCell = ({ prescription }: { prescription: Prescription }) => {
       const newLog = push(logsRef);
       await remove(prescriptionRef);
       await set(newLog, {
-        prescriptionLog: `Prescription deleted by ${user?.firstName} ${user?.lastName}`,
+        prescriptionLog: `Prescription for patient ${prescription.patientFirstName} ${prescription.patientLastName} deleted by ${user?.firstName} ${user?.lastName}`,
         logTime: new Date().toLocaleString(),
       });
       toast.success("Prescription deleted successfully!");

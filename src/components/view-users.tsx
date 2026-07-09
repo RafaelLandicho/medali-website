@@ -263,7 +263,6 @@ export function ViewUsers() {
     });
   }
 
-  // ----- UNLINK -----
   const handleUnlink = (target: User) => {
     setUnlinkTarget(target);
     setIsUnlinkDialogOpen(true);
@@ -454,7 +453,12 @@ export function ViewUsers() {
                 Admin Mode: You can delete users
               </p>
             </div>
-            <Button className="!bg-emerald-500 !text-white">Add users</Button>
+            <Button
+              className="!bg-emerald-500 !text-white"
+              onClick={() => navigate(`/add-user`)}
+            >
+              Add users
+            </Button>
           </div>
         )}
       </div>
@@ -609,10 +613,10 @@ export function ViewUsers() {
                               </div>
                               <button
                                 onClick={() => handleUnlink(u)}
-                                className="flex items-center gap-1 text-red-500 hover:text-red-700 transition-colors"
+                                className="flex items-center gap-1 !text-red-500 !bg-white hover:text-red-700 transition-colors"
                                 title="Unlink from this doctor"
                               >
-                                <Link2Off className="w-4 h-4" />
+                                UNLINK
                               </button>
                             </div>
                           ) : alreadyLinkedToOther ? (
@@ -756,10 +760,10 @@ export function ViewUsers() {
                               </div>
                               <button
                                 onClick={() => handleUnlink(s)}
-                                className="flex items-center gap-1 text-red-500 hover:text-red-700 transition-colors"
+                                className="flex items-center gap-1 !text-red-500 !bg-white hover:text-red-700 transition-colors"
                                 title="Unlink from this secretary"
                               >
-                                <Link2Off className="w-4 h-4" />
+                                UNLINK
                               </button>
                             </div>
                           ) : alreadyLinkedToOther ? (

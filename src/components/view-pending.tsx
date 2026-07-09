@@ -239,7 +239,6 @@ const RiskIndicators = ({ record }: { record: PendingRecord }) => (
   </div>
 );
 
-// Single Firebase log write, reused by every approve/reject action below.
 async function logAction(message: string) {
   const newLogRef = push(ref(db, "logs/"));
   await set(newLogRef, {
@@ -533,7 +532,7 @@ const PendingUpdateActions = ({
       throw new Error("Missing recordId – cannot update record.");
     }
 
-    onRemove(pendingUpdate.id); // optimistic remove
+    onRemove(pendingUpdate.id);
 
     const recordRef = ref(db, `patients/${patientId}/records/${recordId}`);
 

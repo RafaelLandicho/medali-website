@@ -1,14 +1,14 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useIsMobile } from "@/hooks/use-mobile"
-import { Button } from "@/components/ui/button"
+import * as React from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   Drawer,
   DrawerClose,
@@ -16,23 +16,47 @@ import {
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
-} from "@/components/ui/drawer"
+} from "@/components/ui/drawer";
+import type {
+  Patient,
+  MedicalRecord,
+  Prescription,
+} from "./view-consultation-records";
+import { ViewFullPrescription } from "./view-full-prescription";
 
-import type { Prescription } from "./view-prescriptions"
-import { ViewFullPrescription } from "./view-full-prescription"
-
-type PrescriptionDrawerProps = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  prescription: Prescription
-}
+type FullPrescriptionDrawerProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  patient: Patient & MedicalRecord;
+};
 
 export function FullPrescriptionDrawer({
   open,
   onOpenChange,
-  prescription,
-}: PrescriptionDrawerProps) {
-  const isMobile = useIsMobile()
+  patient,
+}: FullPrescriptionDrawerProps) {
+  const isMobile = useIsMobile();
+
+  if (!patient.prescription) return null;
+
+  const prescription: Prescription = {
+    ...patient.prescription,
+    id: patient.prescription.id ?? patient.recordId,
+    createdAt:
+      patient.prescription.createdAt ??
+      (patient.createdAt
+        ? new Date(patient.createdAt).toLocaleString()
+        : undefined),
+    patientFirstName:
+      patient.prescription.patientFirstName ?? patient.firstName,
+    patientLastName: patient.prescription.patientLastName ?? patient.lastName,
+    patientAddress:
+      patient.prescription.patientAddress ??
+      [patient.address1, patient.address2].filter(Boolean).join(", ") ??
+      patient.address,
+    patientAge: patient.prescription.patientAge ?? patient.age,
+    patientGender: patient.prescription.patientGender ?? patient.gender,
+  };
 
   if (isMobile) {
     return (
@@ -55,7 +79,7 @@ export function FullPrescriptionDrawer({
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
-    )
+    );
   }
 
   return (
@@ -71,5 +95,5 @@ export function FullPrescriptionDrawer({
         />
       </DialogContent>
     </Dialog>
-  )
+  );
 }

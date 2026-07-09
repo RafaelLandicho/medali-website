@@ -104,7 +104,7 @@ export function EditPrescription({
     });
 
     await set(newLog, {
-      prescriptionLog: `Prescription updated by ${user?.firstName} ${user?.lastName}`,
+      prescriptionLog: `Prescription of Patient  ${fields.patientFirstName}${fields.patientLastName} updated by ${user?.firstName} ${user?.lastName}`,
       logTime: new Date().toLocaleString(),
     });
 
@@ -122,7 +122,6 @@ export function EditPrescription({
       >
         <FieldGroup>
           <FieldSet className="space-y-6">
-            {/* ── HEADER ── */}
             <div className="text-center mb-8">
               <h1 className="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight">
                 Edit Prescription
@@ -130,7 +129,6 @@ export function EditPrescription({
               <div className="mt-4 h-1 w-16 bg-[#00c4b4] rounded-full mx-auto" />
             </div>
 
-            {/* ── PATIENT BANNER ── */}
             <div className="flex items-center gap-4 p-4 rounded-xl border border-[#00c4b4]/30 bg-[#00c4b4]/5">
               <div className="w-10 h-10 rounded-full bg-[#00c4b4]/15 flex items-center justify-center flex-shrink-0">
                 <User className="w-5 h-5 text-[#00a896]" />
@@ -159,7 +157,6 @@ export function EditPrescription({
             </div>
 
             <div className="space-y-10 max-w-[1100px] mx-auto">
-              {/* ── DIAGNOSIS ── */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <SectionHeader

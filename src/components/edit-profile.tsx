@@ -53,7 +53,6 @@ type UserListItem = {
   role?: string;
 };
 
-// ── Reusable section header (same pattern as AddRecords / EditRecords) ────────
 function SectionHeader({
   icon,
   title,

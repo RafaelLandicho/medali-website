@@ -489,6 +489,7 @@ function ReportDocument({
 }
 
 // ─── Pie chart ─────────────────────────────────────────────────────────────────
+//reference: https://www.shadcn-svelte.com/charts/pie -- interactive pie chart
 function Top5PieChart({ data }: { data: AnalyticsData[] }) {
   const top5 = data.slice(0, 5);
   const othersCount = data.slice(5).reduce((s, d) => s + d.count, 0);
@@ -1499,12 +1500,12 @@ export function Analytics() {
                   setStartDate(undefined);
                   setEndDate(undefined);
                 }}
-                className="inline-flex items-center gap-1 text-sm font-bold text-gray-500 hover:text-red-400 transition-colors px-2 py-1"
+                className="inline-flex items-center gap-1 text-sm font-bold !bg-white text-red-500  border-black hover:text-red-400 transition-colors px-2 py-1"
               >
                 <X className="h-3 w-3" /> Clear
               </button>
             )}
-            <button
+            {/* <button
               onClick={handleGenerateReport}
               disabled={isGenerating}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg !bg-[#00a896] text-white hover:opacity-90 transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
@@ -1519,7 +1520,7 @@ export function Analytics() {
                   <FileText className="h-4 w-4" /> Generate Report
                 </>
               )}
-            </button>
+            </button> */}
           </div>
         </div>
 

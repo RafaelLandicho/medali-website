@@ -25,7 +25,7 @@ export function ViewFullPatient({ patient, onOpenChange }: FullDetails) {
   const updateLog = async () => {
     const newLog = push(logsRef);
     await set(newLog, {
-      medicalRecordLog: `Medical Record ${fields.id} ${fields.firstName} ${fields.lastName} downloaded by ${user?.firstName} ${user?.lastName}`,
+      medicalRecordLog: `Medical Record ${fields.firstName} ${fields.lastName} downloaded by ${user?.firstName} ${user?.lastName}`,
       logTime: new Date().toLocaleString(),
     });
   };

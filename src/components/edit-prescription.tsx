@@ -9,7 +9,7 @@ import { db } from "@/firebaseConfig";
 import { useAuth } from "@/auth/authprovider";
 import { toast } from "sonner";
 import { ClipboardList, Pill, Stethoscope, User } from "lucide-react";
-import type { Prescription } from "./view-prescriptions";
+import type { Prescription } from "./view-consultation-records";
 
 type EditPrescriptionProps = {
   open: boolean;

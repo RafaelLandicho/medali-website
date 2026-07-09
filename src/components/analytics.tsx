@@ -1078,14 +1078,13 @@ export function Analytics() {
     [],
   );
 
-  // ── Global vs User (linked-account) scope ──
   const [activeTab, setActiveTab] = React.useState<"global" | "user">("global");
 
   const userIsAdmin = user?.type?.toLowerCase() === "admin";
   const userIsSecretary = user?.type?.toLowerCase() === "secretary";
   const userIsDoctor = user?.type?.toLowerCase() === "doctor";
 
-  // If user is admin, they cannot access analytics at all
+  //
   if (userIsAdmin) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
@@ -1104,12 +1103,14 @@ export function Analytics() {
     );
   }
 
-  // Fetch the current user's linkId, and — for secretaries — the doctor
-  // they're linked to, so the "User Analytics" tab can be scoped correctly.
+  // Fetch the current user's linkId, the full group of linked user ids
+  // (so we can scope patients correctly), and — for secretaries — the
+  // doctor they're linked to, for display purposes.
   const [currentUserLinkId, setCurrentUserLinkId] = React.useState<
     string | null
   >(null);
   const [linkedUser, setLinkedUser] = React.useState<any | null>(null);
+  const [linkedUserIds, setLinkedUserIds] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     if (!user) return;
@@ -1122,11 +1123,22 @@ export function Analytics() {
 
       if (!linkId) {
         setLinkedUser(null);
+        setLinkedUserIds([user.uid]);
         return;
       }
 
       const allUsersSnap = await get(ref(db, "users"));
       const allUsers = allUsersSnap.val() || {};
+
+      // Everyone sharing this linkId (doctor + secretary, etc.) — mirrors
+      // the linkedUsers logic used on the patients/records pages, so a
+      // secretary's "User Analytics" tab actually includes their linked
+      // doctor's patients instead of only patients they personally created.
+      const group = Object.entries(allUsers)
+        .filter(([, u]: [string, any]) => u.linkId === linkId)
+        .map(([id]) => id);
+      setLinkedUserIds(group.length ? group : [user.uid]);
+
       const partnerEntry = Object.entries(allUsers).find(
         ([id, u]: [string, any]) => id !== user.uid && u.linkId === linkId,
       );
@@ -1218,7 +1230,7 @@ export function Analytics() {
         ? rawPatients
         : rawPatients.filter(
             (p: any) =>
-              p.createdBy === user?.uid ||
+              linkedUserIds.includes(p.createdBy) ||
               (!!p.linkId &&
                 !!currentUserLinkId &&
                 p.linkId === currentUserLinkId),
@@ -1329,6 +1341,7 @@ export function Analytics() {
     endDate,
     activeTab,
     currentUserLinkId,
+    linkedUserIds,
     user,
     userIsAdmin,
     filterByDate,

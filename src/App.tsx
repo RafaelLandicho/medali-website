@@ -17,7 +17,7 @@ import analysis from "./components/images/analysis.png";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/auth/authprovider";
-import { Prescriptions } from "./components/view-prescriptions";
+
 import { ViewLogs } from "./components/logs";
 import { ViewProfile } from "./components/view-profile";
 import { Toaster } from "sonner";
@@ -292,27 +292,6 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <AddUser />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/prescriptions"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <Prescriptions />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/add-prescriptions"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <Prescriptions />
                 </Layout>
               </ProtectedRoute>
             }

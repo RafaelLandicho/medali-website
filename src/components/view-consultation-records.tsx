@@ -710,9 +710,8 @@ const VitalsGrid = ({
                 onClick={() =>
                   hasData && setActiveVital({ key, label, unit, color })
                 }
-                className={`text-left group flex items-center gap-1 transition-colors ${
-                  hasData ? "cursor-pointer hover:opacity-80" : "cursor-default"
-                }`}
+                className="w-full text-left rounded-lg px-2 py-1.5 -mx-2 transition-colors"
+                style={hasData ? { backgroundColor: color + "15" } : undefined}
                 title={
                   hasData ? `View ${label} trend across all records` : undefined
                 }

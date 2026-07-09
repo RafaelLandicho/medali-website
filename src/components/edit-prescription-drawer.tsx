@@ -17,7 +17,7 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from "@/components/ui/drawer";
-import type { Prescription } from "./view-prescriptions";
+import type { Prescription } from "./view-consultation-records";
 import { EditPrescription } from "./edit-prescription";
 
 type PrescriptionDrawerProps = {
